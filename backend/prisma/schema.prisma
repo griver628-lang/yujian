@@ -1,0 +1,56 @@
+// Prisma Schema 定义文件
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 用户经期周期配置表
+model UserConfig {
+  userId         String   @id @map("user_id") // 对应微信用户的 OpenID
+  periodCycle    Int      @default(28) @map("period_cycle") // 平均周期长度天数 (20-45)
+  periodDuration Int      @default(5) @map("period_duration") // 经期持续天数 (2-15)
+  isFirstTime    Boolean  @default(true) @map("is_first_time") // 是否首次配置
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("user_configs")
+}
+
+// 每日生理记录表
+model DailyRecord {
+  recordId         String   @id @map("record_id") // 复合主键，如 2026-07-06_openid
+  userId           String   @map("user_id")
+  date             String   @map("date") // 格式: YYYY-MM-DD
+  menstrualStatus  String   @default("none") @map("menstrual_status") // start | end | none
+  flow             String?  @map("flow") // micro | light | medium | heavy | extreme
+  pain             String?  @map("pain") // none | mild | moderate | severe | extreme
+  color            String?  @map("color") // light_red | bright_red | deep_red | dark_red | black
+  discharge        String?  @map("discharge") // dry | sticky | pasty | watery | egg_white
+  symptoms         Json?    @map("symptoms") // 存储身体症状的 JSONB: { head: [], breast: [], body: [] }
+  basalTemperature Float?   @map("basal_temperature") // 基础体温 °C
+  weight           Float?   @map("weight") // 体重 (斤)
+  emotion          String?  @map("emotion") // happy | normal | unhappy | annoyed | irritable
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, date]) // 限制单个用户每天只能存在一条记录
+  @@index([userId]) // 加快用户的生理数据查询
+  @@map("daily_records")
+}
+
+// 科普名词库表
+model Glossary {
+  id        String   @id @default(uuid()) @map("id")
+  name      String   @unique @map("name") // 科普名词，如“排卵期”
+  brief     String   @map("brief") // 列表简短摘要说明
+  content   String   @db.Text @map("content") // 科普富文本HTML内容
+  colorTag  String   @map("color_tag") // 日历配色标识
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("glossaries")
+}
