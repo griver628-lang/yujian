@@ -10,7 +10,7 @@
         <view class="logo-wrapper">
           <text class="heart-icon">🌸</text>
         </view>
-        <text class="app-title">经期助手</text>
+        <text class="app-title">愈见</text>
         <text class="app-subtitle">你的专属女性生理期管理管家</text>
       </view>
 
@@ -77,7 +77,7 @@
 
       <!-- 保存操作 -->
       <button class="btn-submit" @tap="handleSave" :loading="loading">
-        {{ isFirstTime ? '开启经期助手' : '保存设置' }}
+        {{ isFirstTime ? '开启愈见' : '保存设置' }}
       </button>
 
       <!-- 取消按钮 (非首次配置时显示) -->

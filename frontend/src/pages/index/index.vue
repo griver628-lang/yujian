@@ -4,7 +4,7 @@
     <view class="fixed-nav-header" :style="{ height: (statusBarHeight + 44) + 'px' }">
       <view class="status-bar-fill" :style="{ height: statusBarHeight + 'px' }"></view>
       <view class="nav-bar-content">
-        <text class="nav-title">🌸 经期助手</text>
+        <text class="nav-title">🌸 愈见</text>
         <view class="nav-action" @tap="goToSettings">
           <text class="nav-btn-icon">⚙️</text>
         </view>

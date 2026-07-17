@@ -32,6 +32,6 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 80;
   await app.listen(port);
-  console.log(`🚀 经期助手 API 服务已启动，监听端口: ${port}`);
+  console.log(`🚀 愈见 API 服务已启动，监听端口: ${port}`);
 }
 bootstrap();
