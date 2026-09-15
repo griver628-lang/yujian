@@ -3,7 +3,7 @@
     <!-- 自定义固定导航栏 (整合状态栏占位，防止滑动时内容穿透状态栏) -->
     <view class="fixed-nav-header" :style="{ height: (statusBarHeight + 44) + 'px' }">
       <view class="status-bar-fill" :style="{ height: statusBarHeight + 'px' }"></view>
-      <view class="nav-bar-content">
+      <view class="nav-bar-content" :style="{ paddingRight: navBarPaddingRight + 'px' }">
         <view class="nav-brand">
           <image class="nav-logo-icon" src="/static/logo.png" mode="aspectFit" />
           <text class="nav-title">愈见</text>
@@ -520,9 +520,12 @@ const glossaryLinkText = ref('📚 名词解释 >');
 
 // 自定义导航栏相关
 const statusBarHeight = ref(20);
+const navBarPaddingRight = ref(96); // 避开右上角微信原生胶囊按钮（默认 96px）
+
 onLoad(() => {
   try {
     let sbHeight = 20;
+    // 1. 获取状态栏高度
     // @ts-ignore
     if (typeof wx !== 'undefined' && typeof wx.getWindowInfo === 'function') {
       // @ts-ignore
@@ -531,8 +534,31 @@ onLoad(() => {
       sbHeight = uni.getWindowInfo().statusBarHeight || 20;
     }
     statusBarHeight.value = sbHeight;
+
+    // 2. 动态读取右上角原生胶囊按钮布局，精准避开关闭和更多按钮
+    let padRight = 96;
+    // @ts-ignore
+    const getMenu = (typeof uni !== 'undefined' && typeof uni.getMenuButtonBoundingClientRect === 'function')
+      ? uni.getMenuButtonBoundingClientRect
+      // @ts-ignore
+      : (typeof wx !== 'undefined' && typeof wx.getMenuButtonBoundingClientRect === 'function' ? wx.getMenuButtonBoundingClientRect : null);
+
+    if (getMenu) {
+      const menuBtn = getMenu();
+      const winInfo = (typeof uni !== 'undefined' && typeof uni.getWindowInfo === 'function')
+        ? uni.getWindowInfo()
+        // @ts-ignore
+        : (typeof wx !== 'undefined' && typeof wx.getWindowInfo === 'function' ? wx.getWindowInfo() : null);
+      const screenWidth = winInfo?.windowWidth || 375;
+      if (menuBtn && menuBtn.left) {
+        // 胶囊按钮左边缘到屏幕右边缘的距离 + 8px 视觉边距
+        padRight = (screenWidth - menuBtn.left) + 8;
+      }
+    }
+    navBarPaddingRight.value = Math.max(padRight, 80);
   } catch (e) {
     statusBarHeight.value = 20;
+    navBarPaddingRight.value = 96;
   }
 });
 
@@ -1208,7 +1234,7 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 40rpx;
+  padding-left: 36rpx;
   box-sizing: border-box;
 
   .nav-brand {
@@ -1231,8 +1257,26 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
     }
   }
   
-  .nav-btn-icon {
-    font-size: 38rpx;
+  .nav-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60rpx;
+    height: 60rpx;
+    border-radius: 50%;
+    background: rgba(255, 90, 121, 0.08);
+    border: 1px solid rgba(255, 90, 121, 0.15);
+    flex-shrink: 0;
+    transition: all 0.2s;
+
+    .nav-btn-icon {
+      font-size: 32rpx;
+    }
+
+    &:active {
+      background: rgba(255, 90, 121, 0.22);
+      transform: scale(0.95);
+    }
   }
 }
 
