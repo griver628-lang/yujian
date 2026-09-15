@@ -29,10 +29,13 @@ export function request<T>(options: {
   return new Promise((resolve, reject) => {
     if (USE_CLOUD_CONTAINER) {
       // 检查微信云环境是否初始化
-      if (!uni.getStorageSync('cloud_initialized')) {
+      // @ts-ignore
+      if (typeof wx !== 'undefined' && wx.cloud) {
         // @ts-ignore
-        wx.cloud.init();
-        uni.setStorageSync('cloud_initialized', true);
+        wx.cloud.init({
+          env: 'prod-d6gaj80107becb742',
+          traceUser: true,
+        });
       }
 
       // 使用微信云托管原生免域名调用
