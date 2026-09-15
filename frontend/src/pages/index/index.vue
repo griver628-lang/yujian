@@ -218,8 +218,87 @@
         </view>
       </view>
 
-      <!-- 场景 D：今日编辑面板 (今日是唯一录入与保存的主战场) -->
+      <!-- 场景 D：今日已打卡（友好概览卡片，附修改入口） -->
+      <view v-else-if="dateRelation === 'today' && hasRecordData && !isEditingToday" class="state-card today-recorded-card">
+        <!-- 今日完成打卡成就横幅 -->
+        <view class="recorded-header-banner">
+          <view class="badge-icon-wrap">
+            <text class="badge-check-icon">✓</text>
+          </view>
+          <view class="badge-text-group">
+            <text class="badge-title">今日健康数据已打卡</text>
+            <text class="badge-sub">你的身体点滴已被悉心珍藏，继续保持好心情~</text>
+          </view>
+        </view>
+
+        <!-- 月经来访标记徽章 -->
+        <view class="archive-status-badge" :class="currentRecord.menstrualStatus">
+          <text class="status-icon">{{ currentRecord.menstrualStatus === 'start' ? '🌸' : (currentRecord.menstrualStatus === 'end' ? '🎉' : '✨') }}</text>
+          <text class="status-text">{{ currentRecord.menstrualStatus === 'start' ? '经期开始日' : (currentRecord.menstrualStatus === 'end' ? '经期结束日' : '日常健康记录') }}</text>
+        </view>
+
+        <!-- 今日指标网格 -->
+        <view class="archive-metrics-grid">
+          <view class="archive-metric-item" v-if="currentRecord.flow">
+            <text class="metric-label">经量大小</text>
+            <text class="metric-value">{{ getFlowLabel(currentRecord.flow) }}</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.pain">
+            <text class="metric-label">痛经程度</text>
+            <text class="metric-value">{{ getPainLabel(currentRecord.pain) }}</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.color">
+            <text class="metric-label">经血颜色</text>
+            <view class="color-preview-box">
+              <view class="mini-color-dot" :style="{ backgroundColor: getColorCode(currentRecord.color) }"></view>
+              <text class="metric-value">{{ getColorLabel(currentRecord.color) }}</text>
+            </view>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.discharge">
+            <text class="metric-label">宫颈黏液</text>
+            <text class="metric-value">{{ getDischargeLabel(currentRecord.discharge) }}</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.basalTemperature">
+            <text class="metric-label">基础体温</text>
+            <text class="metric-value">{{ currentRecord.basalTemperature }} °C</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.weight">
+            <text class="metric-label">当日体重</text>
+            <text class="metric-value">{{ currentRecord.weight }} 斤</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.emotion">
+            <text class="metric-label">情绪状态</text>
+            <text class="metric-value">{{ getEmotionLabel(currentRecord.emotion) }}</text>
+          </view>
+        </view>
+
+        <!-- 身体症状标签组合 -->
+        <view v-if="hasAnySymptoms" class="archive-symptoms-section">
+          <text class="archive-symptoms-title">身体症状反馈</text>
+          <view class="archive-tags-row">
+            <text v-for="s in activeSymptomsLabels" :key="s" class="archive-tag-pill">{{ s }}</text>
+          </view>
+        </view>
+
+        <!-- 修改入口操作区 -->
+        <view class="today-action-section">
+          <button class="btn-modify-today" @tap="startEditToday">
+            <text class="btn-modify-icon">✏️</text>
+            <text class="btn-modify-text">修改今日记录</text>
+          </button>
+        </view>
+      </view>
+
+      <!-- 场景 E：今日编辑录入面板 (初次打卡或点击修改后进入) -->
       <view v-else class="today-editing-container">
+        <!-- 若处于修改模式，展示修改模式提示与取消标签 -->
+        <view v-if="isEditingToday && hasRecordData" class="editing-mode-header">
+          <text class="editing-mode-tip">✏️ 正在修改今日身体数据</text>
+          <view class="btn-cancel-tag" @tap="cancelEditToday">
+            <text class="cancel-tag-text">取消修改</text>
+          </view>
+        </view>
+
         <!-- A. 月经开关与闭环文案 -->
         <view class="log-row justify-between align-center card-row">
         <view class="row-label-group">
@@ -405,7 +484,14 @@
       </view>
 
         <!-- 保存操作栏 -->
-        <button class="btn-save-record" @tap="saveRecord">保存今日记录</button>
+        <view class="action-buttons-container">
+          <button v-if="isEditingToday && hasRecordData" class="btn-secondary-cancel" @tap="cancelEditToday">
+            取消
+          </button>
+          <button class="btn-save-record" @tap="saveRecord">
+            {{ (isEditingToday && hasRecordData) ? '保存修改' : '保存今日记录' }}
+          </button>
+        </view>
       </view>
     </view>
   </view>
@@ -446,6 +532,7 @@ const selectedDate = ref('');
 const currentYear = ref(2026);
 const currentMonth = ref(7);
 const swiperCurrent = ref(1); // 默认显示当前月
+const isEditingToday = ref(false); // 今日是否处于编辑修改状态
 
 // 数据枚举定义
 const weeks = ['日', '一', '二', '三', '四', '五', '六'];
@@ -565,6 +652,8 @@ onShow(async () => {
 // 监听日期选中，同步加载记录
 watch(selectedDate, async (newVal) => {
   if (!newVal) return;
+  // 切换日期时，重置修改模式
+  isEditingToday.value = false;
   
   // 查找缓存
   const record = userStore.monthlyRecords.find(r => r.date === newVal);
@@ -636,7 +725,10 @@ const panelHeaderTitle = computed(() => {
   if (dateRelation.value === 'past') {
     return hasRecordData.value ? '📋 历史身体健康档案' : '📜 历史健康记录';
   }
-  return '✏️ 今日身体健康记录';
+  if (hasRecordData.value && !isEditingToday.value) {
+    return '🌸 今日健康概览 (已打卡)';
+  }
+  return (isEditingToday.value && hasRecordData.value) ? '✏️ 修改今日身体记录' : '✏️ 记录今日身体健康';
 });
 
 // 未来日期预测详细信息
@@ -1009,6 +1101,19 @@ const goToGlossary = () => {
   });
 };
 
+const startEditToday = () => {
+  isEditingToday.value = true;
+};
+
+const cancelEditToday = () => {
+  isEditingToday.value = false;
+  // 还原为已有记录
+  const existing = userStore.monthlyRecords.find(r => r.date === selectedDate.value);
+  if (existing) {
+    currentRecord.value = JSON.parse(JSON.stringify(existing));
+  }
+};
+
 const saveRecord = async () => {
   if (!currentRecord.value.date) {
     currentRecord.value.date = selectedDate.value || formatDateString(new Date());
@@ -1022,6 +1127,8 @@ const saveRecord = async () => {
   try {
     const success = await userStore.saveDailyRecord(currentRecord.value);
     if (success) {
+      // 保存成功后退出修改状态，切换为展示卡片
+      isEditingToday.value = false;
       // 重新刷新当月日历的圆圈标记
       setYearMonth(currentYear.value, currentMonth.value);
       generateCalendarSwiperPages(currentYear.value, currentMonth.value);
@@ -1663,6 +1770,243 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
       font-size: 20rpx;
       color: #BDC3C7;
     }
+  }
+}
+
+// 场景 D：今日已打卡卡片特异样式
+.today-recorded-card {
+  align-items: stretch;
+  text-align: left;
+  padding: 36rpx 28rpx;
+  border: 1px solid rgba(255, 90, 121, 0.15);
+  background: #FFFDFD;
+
+  .recorded-header-banner {
+    display: flex;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(255, 90, 121, 0.08) 0%, rgba(255, 142, 162, 0.03) 100%);
+    border: 1px solid rgba(255, 90, 121, 0.12);
+    border-radius: 24rpx;
+    padding: 22rpx 24rpx;
+    margin-bottom: 24rpx;
+
+    .badge-icon-wrap {
+      width: 60rpx;
+      height: 60rpx;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #FF6F8B 0%, #FF4D6D 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 4rpx 12rpx rgba(255, 77, 109, 0.25);
+
+      .badge-check-icon {
+        color: #FFF;
+        font-size: 32rpx;
+        font-weight: 700;
+      }
+    }
+
+    .badge-text-group {
+      margin-left: 20rpx;
+      display: flex;
+      flex-direction: column;
+
+      .badge-title {
+        font-size: 28rpx;
+        font-weight: 700;
+        color: #2D2727;
+      }
+      .badge-sub {
+        font-size: 22rpx;
+        color: #8E8282;
+        margin-top: 4rpx;
+      }
+    }
+  }
+
+  .archive-status-badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    background: #FFF0F2;
+    padding: 10rpx 24rpx;
+    border-radius: 20rpx;
+    margin-bottom: 24rpx;
+    border: 1px solid rgba(255, 90, 121, 0.18);
+
+    .status-icon {
+      font-size: 28rpx;
+      margin-right: 8rpx;
+    }
+    .status-text {
+      font-size: 24rpx;
+      font-weight: 700;
+      color: #FF5A79;
+    }
+  }
+
+  .archive-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16rpx;
+    margin-bottom: 24rpx;
+
+    .archive-metric-item {
+      background: #FFF;
+      border-radius: 20rpx;
+      padding: 18rpx 20rpx;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255, 112, 136, 0.08);
+
+      .metric-label {
+        font-size: 20rpx;
+        color: #A39696;
+        margin-bottom: 6rpx;
+      }
+      .metric-value {
+        font-size: 26rpx;
+        font-weight: 700;
+        color: #2D2727;
+      }
+
+      .color-preview-box {
+        display: flex;
+        align-items: center;
+
+        .mini-color-dot {
+          width: 22rpx;
+          height: 22rpx;
+          border-radius: 50%;
+          margin-right: 10rpx;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+      }
+    }
+  }
+
+  .archive-symptoms-section {
+    background: #FFF;
+    border-radius: 24rpx;
+    padding: 20rpx;
+    margin-bottom: 24rpx;
+    border: 1px solid rgba(255, 112, 136, 0.08);
+
+    .archive-symptoms-title {
+      font-size: 22rpx;
+      color: #A39696;
+      margin-bottom: 12rpx;
+      display: block;
+      font-weight: 600;
+    }
+
+    .archive-tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12rpx;
+
+      .archive-tag-pill {
+        background: #FFF0F2;
+        color: #FF5A79;
+        font-size: 22rpx;
+        padding: 6rpx 18rpx;
+        border-radius: 16rpx;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .btn-modify-today {
+    width: 100%;
+    height: 88rpx;
+    background: #FFF0F3;
+    border: 1.5px solid #FFD0D9;
+    border-radius: 44rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12rpx;
+    box-shadow: 0 4rpx 14rpx rgba(255, 90, 121, 0.08);
+
+    .btn-modify-icon {
+      font-size: 28rpx;
+      margin-right: 12rpx;
+    }
+    .btn-modify-text {
+      font-size: 28rpx;
+      font-weight: 700;
+      color: #FF5A79;
+    }
+
+    &:active {
+      transform: translateY(2rpx);
+      background: #FFE4E8;
+    }
+  }
+}
+
+.editing-mode-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFF5F7;
+  border: 1px dashed #FF8EA2;
+  border-radius: 20rpx;
+  padding: 16rpx 24rpx;
+  margin-bottom: 30rpx;
+
+  .editing-mode-tip {
+    font-size: 26rpx;
+    font-weight: 600;
+    color: #FF5A79;
+  }
+  .btn-cancel-tag {
+    padding: 6rpx 20rpx;
+    background: #FFF;
+    border: 1px solid #FFCCD5;
+    border-radius: 20rpx;
+
+    .cancel-tag-text {
+      font-size: 22rpx;
+      color: #8E8282;
+    }
+
+    &:active {
+      background: #F8F4F4;
+    }
+  }
+}
+
+.action-buttons-container {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-top: 60rpx;
+
+  .btn-secondary-cancel {
+    width: 200rpx;
+    height: 96rpx;
+    background: #F5F1F2;
+    color: #7D7274;
+    border-radius: 28rpx;
+    font-size: 28rpx;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    flex-shrink: 0;
+
+    &:active {
+      background: #EAE5E6;
+    }
+  }
+
+  .btn-save-record {
+    margin-top: 0;
+    flex: 1;
   }
 }
 
