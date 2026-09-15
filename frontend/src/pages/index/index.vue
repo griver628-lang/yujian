@@ -424,16 +424,16 @@ onShow(async () => {
   try {
     const isFirstTime = await userStore.wxLogin();
     if (isFirstTime) {
-      uni.redirectTo({
+      uni.reLaunch({
         url: '/pages/setup/setup',
       });
-    } else {
+      return;
+    }
       // 加载当前设置
       await userStore.fetchConfig();
       // 获取最新云端生理记录并刷新日历标识
       await userStore.fetchMonthlyRecords(String(currentYear.value), String(currentMonth.value));
       generateCalendarSwiperPages(currentYear.value, currentMonth.value);
-    }
   } catch (err) {
     console.error('初始化登录或加载数据失败，降级为本地离线显示', err);
   }
