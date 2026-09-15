@@ -34,7 +34,70 @@ import type { GlossaryTerm } from '../../types/index';
 import { request } from '../../utils/request';
 import { onLoad } from '@dcloudio/uni-app';
 
-const terms = ref<GlossaryTerm[]>([]);
+const defaultTerms: GlossaryTerm[] = [
+  {
+    id: '1',
+    name: '月经期',
+    brief: '子宫内膜脱落出血的时期，标志着女性每个生理周期的正式开始。',
+    colorTag: 'coral',
+  },
+  {
+    name: '预测经期',
+    id: '2',
+    brief: '基于历史周期长度智能推算的下一次大姨妈来访区间，提前从容应对。',
+    colorTag: 'pink',
+  },
+  {
+    name: '卵泡期',
+    id: '3',
+    brief: '经期结束至排卵前的黄金生长期，卵泡逐渐成熟，机体活力充沛。',
+    colorTag: 'green',
+  },
+  {
+    name: '排卵期',
+    id: '4',
+    brief: '排卵日前5天至排卵日后1天，受孕几率极高的黄金受孕窗口。',
+    colorTag: 'light-purple',
+  },
+  {
+    name: '排卵日',
+    id: '5',
+    brief: '下次月经来潮前推约14天，成熟卵子排出卵巢的关键一天。',
+    colorTag: 'purple',
+  },
+  {
+    name: '黄体期',
+    id: '6',
+    brief: '排卵后到下一次经期来潮前，孕酮维持高水平，体温升高。',
+    colorTag: 'orange',
+  },
+  {
+    name: '经前综合征 (PMS)',
+    id: '7',
+    brief: '月经前7-10天反复出现的情绪波动、腹胀、胸胀等身心反应。',
+    colorTag: 'gold',
+  },
+  {
+    name: '基础体温 (BBT)',
+    id: '8',
+    brief: '晨起未进行任何活动时测得的最低体温，呈典型双相曲线。',
+    colorTag: 'teal',
+  },
+  {
+    name: '宫颈黏液 (白带)',
+    id: '9',
+    brief: '随激素呈周期性规律变化的阴道分泌物，女性健康的天然指示标。',
+    colorTag: 'cyan',
+  },
+  {
+    name: '安全期与科学避孕',
+    id: '10',
+    brief: '俗称“前七后八”，但失败率高达20%，不宜作为主要避孕手段。',
+    colorTag: 'blue',
+  },
+];
+
+const terms = ref<GlossaryTerm[]>(defaultTerms);
 
 onLoad(async () => {
   try {
@@ -42,35 +105,12 @@ onLoad(async () => {
       url: '/glossary',
       method: 'GET',
     });
-    terms.value = res.data;
+    if (res.data && res.data.length > 0) {
+      terms.value = res.data;
+    }
   } catch (err) {
-    // 降级兜底静态数据
-    terms.value = [
-      {
-        id: '1',
-        name: '月经期',
-        brief: '子宫内膜脱落出血的时期，代表本次周期的开始。',
-        colorTag: 'coral',
-      },
-      {
-        id: '2',
-        name: '预测经期',
-        brief: '基于你设定的周期长度计算，预测的下一次经期日期范围。',
-        colorTag: 'pink',
-      },
-      {
-        id: '3',
-        name: '排卵日',
-        brief: '下一次月经前推14天为排卵日，是受孕可能性最高的一天。',
-        colorTag: 'purple',
-      },
-      {
-        id: '4',
-        name: '排卵期',
-        brief: '排卵日前5天到排卵日后1天，在这期间受孕几率极高。',
-        colorTag: 'light-purple',
-      }
-    ];
+    // 降级使用本地默认数据
+    terms.value = defaultTerms;
   }
 });
 
@@ -78,9 +118,15 @@ const getColor = (tag: string) => {
   switch (tag) {
     case 'coral': return '#FF7088';
     case 'pink': return '#FFB5C5';
-    case 'purple': return '#8E44AD';
+    case 'green': return '#58D68D';
     case 'light-purple': return '#D2B4DE';
-    default: return '#BDC3C7';
+    case 'purple': return '#8E44AD';
+    case 'orange': return '#FFA07A';
+    case 'gold': return '#F39C12';
+    case 'teal': return '#16A085';
+    case 'cyan': return '#48CAE4';
+    case 'blue': return '#5DADE2';
+    default: return '#FF7088';
   }
 };
 
