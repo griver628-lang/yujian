@@ -13,13 +13,9 @@ COPY backend/prisma ./prisma/
 RUN npm ci
 RUN npx prisma generate
 
-# 复制源文件并构建编译
+# 复制源文件并构建编译（输出到 dist/src/）
 COPY backend/src ./src
 RUN npm run build
-
-# 双向兼容映射：保证 dist/main.js 与 dist/src/main.js 同时存在
-RUN if [ -f dist/main.js ]; then mkdir -p dist/src && cp -f dist/main.js dist/src/main.js; fi
-RUN if [ -f dist/src/main.js ] && [ ! -f dist/main.js ]; then cp -f dist/src/main.js dist/main.js; fi
 
 # ==================== Production Stage ====================
 FROM node:20-alpine AS runner
@@ -36,12 +32,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
-# 运行镜像中再次确保两处路径全部存在
-RUN if [ -f dist/main.js ] && [ ! -f dist/src/main.js ]; then mkdir -p dist/src && cp -f dist/main.js dist/src/main.js; fi
+# 双向兼容：确保 dist/src/main.js 与 dist/main.js 同时存在
 RUN if [ -f dist/src/main.js ] && [ ! -f dist/main.js ]; then cp -f dist/src/main.js dist/main.js; fi
 
 # 暴露微信云托管容器默认的 80 端口
 EXPOSE 80
 
-# 容器启动命令：执行数据库同步，并启动服务（若有任何路径差异自适应处理）
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main.js"]
+# 容器启动命令：先执行数据库同步，再启动 NestJS 实例
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/src/main.js"]
