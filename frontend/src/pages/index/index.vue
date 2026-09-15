@@ -461,8 +461,10 @@ watch(selectedDate, async (newVal) => {
   const record = userStore.monthlyRecords.find(r => r.date === newVal);
   if (record) {
     currentRecord.value = JSON.parse(JSON.stringify(record));
+    console.log(`📋 [经期助手] 成功回显 ${newVal} 的健康记录:`, record);
   } else {
     currentRecord.value = getEmptyRecord(newVal);
+    console.log(`📝 [经期助手] ${newVal} 暂无历史记录，已初始化为空白记录面板`);
   }
 });
 
@@ -680,6 +682,7 @@ const getPeriodType = (dateStr: string) => {
 // 事件处理器
 const selectDay = (day: any) => {
   selectedDate.value = day.dateString;
+  console.log(`📅 [经期助手] 点击选中日期: ${day.dateString}`);
   if (!day.isCurrentMonth) {
     const parts = day.dateString.split('-');
     setYearMonth(parseInt(parts[0]), parseInt(parts[1]));
