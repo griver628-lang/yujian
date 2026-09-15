@@ -38,31 +38,44 @@ export function request<T>(options: {
         });
       }
 
-      // 使用微信云托管原生免域名调用
-      // @ts-ignore
-      wx.cloud.callContainer({
-        config: {
-          env: 'prod-d6gaj80107becb742', // 微信云托管环境ID
-        },
-        path: `${CONTAINER_PATH_PREFIX}${options.url}`,
-        header: {
-          ...headers,
-          'X-WX-SERVICE': CONTAINER_SERVICE_NAME,
-        },
-        method: options.method || 'GET',
-        data: options.data,
-        success: (res: any) => {
-          // 拦截器逻辑
-          handleResponse(res.data, resolve, reject);
-        },
-        fail: (err: any) => {
-          uni.showToast({
-            title: '云容器请求失败',
-            icon: 'none',
-          });
-          reject(err);
-        },
-      });
+      const doCall = (retryCount = 0) => {
+        // 使用微信云托管原生免域名调用
+        // @ts-ignore
+        wx.cloud.callContainer({
+          config: {
+            env: 'prod-d6gaj80107becb742', // 微信云托管环境ID
+          },
+          path: `${CONTAINER_PATH_PREFIX}${options.url}`,
+          header: {
+            ...headers,
+            'X-WX-SERVICE': CONTAINER_SERVICE_NAME,
+          },
+          method: options.method || 'GET',
+          data: options.data,
+          timeout: 15000,
+          success: (res: any) => {
+            // 拦截器逻辑
+            handleResponse(res.data, resolve, reject);
+          },
+          fail: (err: any) => {
+            // 如果遇到冷启动超时（timeout），自动重试一次（此时容器已经被唤醒就绪）
+            const isTimeout = err?.errMsg?.includes('timeout') || err?.message?.includes('timeout');
+            if (isTimeout && retryCount < 2) {
+              console.log('⏳ 云容器正在唤醒冷启动，1.5秒后自动重试...');
+              setTimeout(() => {
+                doCall(retryCount + 1);
+              }, 1500);
+              return;
+            }
+            uni.showToast({
+              title: isTimeout ? '服务正在唤醒中，请稍后重试' : '云容器请求失败',
+              icon: 'none',
+            });
+            reject(err);
+          },
+        });
+      };
+      doCall();
     } else {
       // 使用传统服务器 HTTP 访问
       uni.request({
