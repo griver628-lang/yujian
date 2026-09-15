@@ -36,8 +36,18 @@
             <text class="arrow-down">▼</text>
           </view>
         </picker>
-        <view v-if="!isTodayInView" class="back-today" @tap="goBackToToday">
-          <text class="today-text">回今天</text>
+        <view class="calendar-header-actions">
+          <view v-if="!isTodayInView" class="back-today" @tap="goBackToToday">
+            <text class="today-text">回今天</text>
+          </view>
+          <view class="month-nav-group">
+            <view class="btn-month-nav" @tap="goToPrevMonth" hover-class="btn-nav-hover">
+              <text class="nav-arrow-icon">‹</text>
+            </view>
+            <view class="btn-month-nav" @tap="goToNextMonth" hover-class="btn-nav-hover">
+              <text class="nav-arrow-icon">›</text>
+            </view>
+          </view>
         </view>
       </view>
 
@@ -1040,6 +1050,7 @@ const getMonthDays = (year: number, month: number) => {
 
 // 匹配预测或实际生理期的类型颜色
 const getPeriodType = (dateStr: string) => {
+  if (!dateStr || typeof dateStr !== 'string') return 'none';
   const record = userStore.monthlyRecords.find(r => r.date === dateStr);
   
   // A. 实际月经期 (珊瑚红)
@@ -1048,8 +1059,10 @@ const getPeriodType = (dateStr: string) => {
   }
   
   // 模拟预测计算结果匹配（实际应根据后端 API /predictions 计算）
-  // 此处做简单模拟展示，实际开发将以 api-predictions 返回的范围映射
-  const day = parseInt(dateStr.split('-')[2]);
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return 'none';
+  const day = parseInt(parts[2], 10);
+  if (isNaN(day)) return 'none';
   if (day >= 1 && day <= 5) return 'type-menstrual'; // 经期示例
   if (day === 15) return 'type-ovulation-day';       // 排卵日示例
   if (day >= 10 && day <= 16) return 'type-ovulation-window'; // 排卵期示例
@@ -1059,28 +1072,54 @@ const getPeriodType = (dateStr: string) => {
 
 // 事件处理器
 const selectDay = (day: any) => {
+  if (!day || !day.dateString) return;
   selectedDate.value = day.dateString;
   console.log(`📅 [经期助手] 点击选中日期: ${day.dateString}`);
   if (!day.isCurrentMonth) {
     const parts = day.dateString.split('-');
-    setYearMonth(parseInt(parts[0]), parseInt(parts[1]));
+    if (parts.length >= 2) {
+      setYearMonth(parseInt(parts[0], 10), parseInt(parts[1], 10));
+    }
   }
 };
 
 const onSwiperChange = (e: any) => {
+  // 只在用户手指真实滑动时响应，忽略代码调整 current 产生的事件
+  if (e.detail.source !== 'touch') return;
+
   const index = e.detail.current;
   if (index === swiperCurrent.value) return;
 
   const targetPage = calendarPages.value[index];
-  if (targetPage) {
+  if (targetPage && targetPage.year && targetPage.month) {
     setYearMonth(targetPage.year, targetPage.month);
   }
+};
+
+const goToPrevMonth = () => {
+  let y = currentYear.value;
+  let m = currentMonth.value - 1;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
+  }
+  setYearMonth(y, m);
+};
+
+const goToNextMonth = () => {
+  let y = currentYear.value;
+  let m = currentMonth.value + 1;
+  if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  setYearMonth(y, m);
 };
 
 const onDatePickerChange = (e: any) => {
   const val = e.detail.value; // YYYY-MM
   const parts = val.split('-');
-  setYearMonth(parseInt(parts[0]), parseInt(parts[1]));
+  setYearMonth(parseInt(parts[0], 10), parseInt(parts[1], 10));
 };
 
 const goBackToToday = () => {
@@ -1269,15 +1308,56 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
     }
   }
   
-  .back-today {
-    background: #FFF0F1;
-    padding: 10rpx 24rpx;
-    border-radius: 24rpx;
-    
-    .today-text {
-      font-size: 24rpx;
-      color: #FF5A79;
-      font-weight: 600;
+  .calendar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16rpx;
+
+    .back-today {
+      background: #FFF0F1;
+      padding: 10rpx 24rpx;
+      border-radius: 24rpx;
+      
+      .today-text {
+        font-size: 24rpx;
+        color: #FF5A79;
+        font-weight: 600;
+      }
+    }
+
+    .month-nav-group {
+      display: flex;
+      align-items: center;
+      background: #FFF5F7;
+      border-radius: 28rpx;
+      padding: 4rpx;
+      border: 1px solid rgba(255, 90, 121, 0.15);
+
+      .btn-month-nav {
+        width: 52rpx;
+        height: 52rpx;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+
+        .nav-arrow-icon {
+          font-size: 36rpx;
+          line-height: 1;
+          color: #FF5A79;
+          font-weight: 700;
+          margin-top: -4rpx;
+        }
+
+        &.btn-nav-hover,
+        &:active {
+          background: #FF5A79;
+          .nav-arrow-icon {
+            color: #FFF;
+          }
+        }
+      }
     }
   }
 }

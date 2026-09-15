@@ -39,19 +39,38 @@ export function request<T>(options: {
       }
 
       const doCall = (retryCount = 0) => {
+        let finalUrl = `${CONTAINER_PATH_PREFIX}${options.url}`;
+        let requestData = options.data;
+
+        // 如果是 GET 请求且携带了参数，格式化为 URL Query 参数拼接到 path 中
+        const isGet = (options.method || 'GET').toUpperCase() === 'GET';
+        if (isGet && options.data && typeof options.data === 'object') {
+          const queryPairs: string[] = [];
+          Object.keys(options.data).forEach(key => {
+            const val = options.data[key];
+            if (val !== undefined && val !== null) {
+              queryPairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
+            }
+          });
+          if (queryPairs.length > 0) {
+            finalUrl += (finalUrl.includes('?') ? '&' : '?') + queryPairs.join('&');
+          }
+          requestData = undefined; // GET 请求参数已编码至 URL，无需传 body
+        }
+
         // 使用微信云托管原生免域名调用
         // @ts-ignore
         wx.cloud.callContainer({
           config: {
             env: 'prod-d6gaj80107becb742', // 微信云托管环境ID
           },
-          path: `${CONTAINER_PATH_PREFIX}${options.url}`,
+          path: finalUrl,
           header: {
             ...headers,
             'X-WX-SERVICE': CONTAINER_SERVICE_NAME,
           },
           method: options.method || 'GET',
-          data: options.data,
+          data: requestData,
           timeout: 30000,
           success: (res: any) => {
             // 拦截器逻辑
