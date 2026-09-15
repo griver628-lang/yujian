@@ -1,7 +1,7 @@
 // Prisma Schema 定义文件
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 generator client {
