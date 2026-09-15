@@ -112,13 +112,113 @@
 
     <!-- 5. 每日多维度记录面板 (固定展示在下方，方便点选日期即时记录) -->
     <view class="logging-panel">
+      <!-- 统一头部 -->
       <view class="panel-header">
-        <text class="panel-title">✏️ 每日身体健康记录</text>
+        <text class="panel-title">{{ panelHeaderTitle }}</text>
         <text class="selected-date-indicator">{{ formattedSelectedDate }}</text>
       </view>
 
-      <!-- A. 月经开关与闭环文案 -->
-      <view class="log-row justify-between align-center card-row">
+      <!-- 场景 A：未来日期 (尚未到来，禁止录入与显示数据) -->
+      <view v-if="dateRelation === 'future'" class="state-card future-card">
+        <view class="state-icon-wrapper future-icon-box">
+          <text class="state-main-icon">🔮</text>
+        </view>
+        <text class="state-card-title">未来日期尚未到来</text>
+        <text class="state-card-sub">身体健康数据只能记录今天或已发生的日子哦，请保持期待与好心情~</text>
+        
+        <!-- 周期阶段预测小档案 -->
+        <view v-if="futurePredictionInfo" class="prediction-info-box">
+          <view class="pred-header">
+            <text class="pred-icon">{{ futurePredictionInfo.icon }}</text>
+            <text class="pred-title">{{ futurePredictionInfo.title }}</text>
+          </view>
+          <text class="pred-desc">{{ futurePredictionInfo.desc }}</text>
+        </view>
+
+        <view class="tips-pill">
+          <text class="tips-pill-icon">💡</text>
+          <text class="tips-pill-text">贴士：多喝温水、避免熬夜，规律作息有助经期准时顺畅</text>
+        </view>
+      </view>
+
+      <!-- 场景 B：历史无数据日期 (当天未记录，且不应在此添加) -->
+      <view v-else-if="dateRelation === 'past' && !hasRecordData" class="state-card empty-card">
+        <view class="state-icon-wrapper empty-icon-box">
+          <text class="state-main-icon">🍃</text>
+        </view>
+        <text class="state-card-title">该日未记录身体数据</text>
+        <text class="state-card-sub">这天你可能度过了轻松自在的时光，没有留下任何身体记录~</text>
+        
+        <view class="empty-notice-box">
+          <text class="empty-notice-text">📌 根据生理记录规范，历史空白日期不可在此添加，请在每天结束前及时记录哦~</text>
+        </view>
+
+        <!-- 引导回到今天打卡 -->
+        <button class="btn-back-today-log" @tap="goBackToToday">
+          <text class="btn-back-text">回到今天去打卡 🌸</text>
+        </button>
+      </view>
+
+      <!-- 场景 C：历史有数据日期 (回看历史健康档案) -->
+      <view v-else-if="dateRelation === 'past' && hasRecordData" class="state-card history-archive-card">
+        <!-- 月经来访标记徽章 -->
+        <view class="archive-status-badge" :class="currentRecord.menstrualStatus">
+          <text class="status-icon">{{ currentRecord.menstrualStatus === 'start' ? '🌸' : (currentRecord.menstrualStatus === 'end' ? '🎉' : '✨') }}</text>
+          <text class="status-text">{{ currentRecord.menstrualStatus === 'start' ? '经期开始日' : (currentRecord.menstrualStatus === 'end' ? '经期结束日' : '日常健康记录') }}</text>
+        </view>
+
+        <!-- 历史维度指标网格 -->
+        <view class="archive-metrics-grid">
+          <view class="archive-metric-item" v-if="currentRecord.flow">
+            <text class="metric-label">经量大小</text>
+            <text class="metric-value">{{ getFlowLabel(currentRecord.flow) }}</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.pain">
+            <text class="metric-label">痛经程度</text>
+            <text class="metric-value">{{ getPainLabel(currentRecord.pain) }}</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.color">
+            <text class="metric-label">经血颜色</text>
+            <view class="color-preview-box">
+              <view class="mini-color-dot" :style="{ backgroundColor: getColorCode(currentRecord.color) }"></view>
+              <text class="metric-value">{{ getColorLabel(currentRecord.color) }}</text>
+            </view>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.discharge">
+            <text class="metric-label">宫颈黏液</text>
+            <text class="metric-value">{{ getDischargeLabel(currentRecord.discharge) }}</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.basalTemperature">
+            <text class="metric-label">基础体温</text>
+            <text class="metric-value">{{ currentRecord.basalTemperature }} °C</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.weight">
+            <text class="metric-label">当日体重</text>
+            <text class="metric-value">{{ currentRecord.weight }} 斤</text>
+          </view>
+          <view class="archive-metric-item" v-if="currentRecord.emotion">
+            <text class="metric-label">情绪状态</text>
+            <text class="metric-value">{{ getEmotionLabel(currentRecord.emotion) }}</text>
+          </view>
+        </view>
+
+        <!-- 身体症状标签组合 -->
+        <view v-if="hasAnySymptoms" class="archive-symptoms-section">
+          <text class="archive-symptoms-title">身体症状反馈</text>
+          <view class="archive-tags-row">
+            <text v-for="s in activeSymptomsLabels" :key="s" class="archive-tag-pill">{{ s }}</text>
+          </view>
+        </view>
+
+        <view class="archive-footer-tip">
+          <text class="footer-tip-text">ℹ️ 历史数据已归档，健康数据持续守护你</text>
+        </view>
+      </view>
+
+      <!-- 场景 D：今日编辑面板 (今日是唯一录入与保存的主战场) -->
+      <view v-else class="today-editing-container">
+        <!-- A. 月经开关与闭环文案 -->
+        <view class="log-row justify-between align-center card-row">
         <view class="row-label-group">
           <text class="row-label">{{ menstrualToggleText }}</text>
           <text class="row-sublabel">{{ menstrualStatusDesc }}</text>
@@ -301,8 +401,9 @@
         </view>
       </view>
 
-      <!-- 保存操作栏 -->
-      <button class="btn-save-record" @tap="saveRecord">保存今日记录</button>
+        <!-- 保存操作栏 -->
+        <button class="btn-save-record" @tap="saveRecord">保存今日记录</button>
+      </view>
     </view>
   </view>
 </template>
@@ -488,6 +589,183 @@ const hasToday = (year: number, month: number) => {
 const isTodayInView = computed(() => {
   return hasToday(currentYear.value, currentMonth.value);
 });
+
+// 当天日期字符串
+const todayString = computed(() => formatDateString(new Date()));
+
+// 选定日期与今天的关系 ('future' | 'past' | 'today')
+const dateRelation = computed<'future' | 'past' | 'today'>(() => {
+  if (!selectedDate.value) return 'today';
+  if (selectedDate.value > todayString.value) return 'future';
+  if (selectedDate.value < todayString.value) return 'past';
+  return 'today';
+});
+
+// 选定日期是否存在真实生理记录
+const hasRecordData = computed<boolean>(() => {
+  if (!selectedDate.value) return false;
+  const rec = userStore.monthlyRecords.find(r => r.date === selectedDate.value);
+  if (!rec) return false;
+  const hasMenstrual = rec.menstrualStatus && rec.menstrualStatus !== 'none';
+  const hasFlow = !!rec.flow;
+  const hasPain = !!rec.pain;
+  const hasColor = !!rec.color;
+  const hasDischarge = !!rec.discharge;
+  const hasTemp = rec.basalTemperature !== undefined && rec.basalTemperature !== null;
+  const hasWeight = rec.weight !== undefined && rec.weight !== null;
+  const hasEmotion = !!rec.emotion;
+  const hasSymptoms = rec.symptoms && (
+    (rec.symptoms.head && rec.symptoms.head.length > 0 && !rec.symptoms.head.includes('none')) ||
+    (rec.symptoms.breast && rec.symptoms.breast.length > 0 && !rec.symptoms.breast.includes('none')) ||
+    (rec.symptoms.body && rec.symptoms.body.length > 0 && !rec.symptoms.body.includes('none'))
+  );
+  return !!(hasMenstrual || hasFlow || hasPain || hasColor || hasDischarge || hasTemp || hasWeight || hasEmotion || hasSymptoms);
+});
+
+// 统一记录面板标题
+const panelHeaderTitle = computed(() => {
+  if (dateRelation.value === 'future') return '🔮 未来日程预测';
+  if (dateRelation.value === 'past') {
+    return hasRecordData.value ? '📋 历史身体健康档案' : '📜 历史健康记录';
+  }
+  return '✏️ 今日身体健康记录';
+});
+
+// 未来日期预测详细信息
+const futurePredictionInfo = computed(() => {
+  if (dateRelation.value !== 'future') return null;
+  const periodType = getPeriodType(selectedDate.value);
+  if (periodType === 'type-predict') {
+    return {
+      badge: '预测经期',
+      icon: '🩸',
+      title: '预计处于【预测经期】阶段',
+      desc: '算法预测大姨妈可能于此时来访，建议提前备好卫生用品，注意腹部防寒保暖。',
+    };
+  } else if (periodType === 'type-ovulation-day') {
+    return {
+      badge: '排卵日',
+      icon: '🥚',
+      title: '预计为【排卵日】当天',
+      desc: '成熟卵子排出的关键一天，受孕可能性极高。若备孕请科学安排，避孕需做好严密防护。',
+    };
+  } else if (periodType === 'type-ovulation-window') {
+    return {
+      badge: '排卵期',
+      icon: '🌸',
+      title: '预计处于【排卵期（易孕期）】',
+      desc: '处于易孕黄金窗口期，身体受孕几率较高。保持好心情，规律作息。',
+    };
+  } else {
+    return {
+      badge: '日常阶段',
+      icon: '🌱',
+      title: '预计处于【日常健康阶段】',
+      desc: '距离下次经期仍有充裕时间，保持适度运动与营养均衡，享受充沛活力。',
+    };
+  }
+});
+
+// 历史数据指标显示辅助映射
+const getFlowLabel = (val?: string) => {
+  const map: Record<string, string> = {
+    micro: '极少 💧',
+    light: '少量 💧💧',
+    medium: '中等 🩸',
+    heavy: '量多 🩸🩸',
+    extreme: '极多 🌊',
+  };
+  return map[val || ''] || '未记录';
+};
+
+const getPainLabel = (val?: string) => {
+  const map: Record<string, string> = {
+    none: '完全不痛 ☺️',
+    mild: '轻微痛 🥱',
+    moderate: '比较痛 🙁',
+    severe: '非常痛 😖',
+    extreme: '痛到极致 ⚡',
+  };
+  return map[val || ''] || '未记录';
+};
+
+const getColorCode = (val?: string) => {
+  const map: Record<string, string> = {
+    light_red: '#FF7088',
+    bright_red: '#FF0000',
+    deep_red: '#B30000',
+    dark_red: '#800020',
+    black: '#2B2B2B',
+  };
+  return map[val || ''] || '#FF7088';
+};
+
+const getColorLabel = (val?: string) => {
+  const map: Record<string, string> = {
+    light_red: '浅红',
+    bright_red: '鲜红',
+    deep_red: '深红',
+    dark_red: '暗红',
+    black: '黑色',
+  };
+  return map[val || ''] || '未记录';
+};
+
+const getDischargeLabel = (val?: string) => {
+  const map: Record<string, string> = {
+    none: '无异味',
+    dry: '干燥',
+    sticky: '粘稠',
+    pasty: '稀糊状',
+    watery: '水状',
+    egg_white: '蛋清状',
+  };
+  return map[val || ''] || '未记录';
+};
+
+const getEmotionLabel = (val?: string) => {
+  const map: Record<string, string> = {
+    happy: '开心 😄',
+    normal: '一般 😐',
+    unhappy: '不开心 😢',
+    annoyed: '烦躁 😤',
+    irritable: '易怒 😡',
+  };
+  return map[val || ''] || '未记录';
+};
+
+const symptomLabelMap: Record<string, string> = {
+  headache: '头痛',
+  dizziness: '眩晕',
+  heavy_head: '昏沉',
+  bloating_head: '发胀',
+  swelling_pain: '乳房胀痛',
+  sharp_pain: '刺痛',
+  hardening: '发硬',
+  sagging: '下坠感',
+  lumbago: '腰酸',
+  backache: '背痛',
+  bloating_abdomen: '腹胀',
+  abdominal_pain: '腹痛',
+};
+
+const activeSymptomsLabels = computed(() => {
+  const labels: string[] = [];
+  const s = currentRecord.value.symptoms;
+  if (!s) return labels;
+  ['head', 'breast', 'body'].forEach((k) => {
+    // @ts-ignore
+    const arr = s[k] || [];
+    arr.forEach((item: string) => {
+      if (item && item !== 'none' && symptomLabelMap[item]) {
+        labels.push(symptomLabelMap[item]);
+      }
+    });
+  });
+  return labels;
+});
+
+const hasAnySymptoms = computed(() => activeSymptomsLabels.value.length > 0);
 
 // 闭环判断逻辑
 const hasMenstruation = computed(() => {
@@ -1094,6 +1372,269 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
     font-size: 26rpx;
     color: #FF5A79;
     font-weight: 600;
+  }
+}
+
+// 状态卡片通用样式 (未来/历史空/历史归档)
+.state-card {
+  background: #FFF9FA;
+  border-radius: 36rpx;
+  padding: 48rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1px solid rgba(255, 112, 136, 0.08);
+  margin-bottom: 20rpx;
+  box-sizing: border-box;
+
+  .state-icon-wrapper {
+    width: 128rpx;
+    height: 128rpx;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24rpx;
+
+    &.future-icon-box {
+      background: linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%);
+      box-shadow: 0 8rpx 20rpx rgba(142, 68, 173, 0.15);
+    }
+
+    &.empty-icon-box {
+      background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+      box-shadow: 0 8rpx 20rpx rgba(243, 156, 18, 0.12);
+    }
+
+    .state-main-icon {
+      font-size: 60rpx;
+    }
+  }
+
+  .state-card-title {
+    font-size: 34rpx;
+    font-weight: 700;
+    color: #2D2727;
+    margin-bottom: 12rpx;
+  }
+
+  .state-card-sub {
+    font-size: 24rpx;
+    color: #8E8282;
+    line-height: 1.5;
+    margin-bottom: 28rpx;
+    max-width: 540rpx;
+  }
+}
+
+// 场景 A：未来预测卡片特异样式
+.future-card {
+  .prediction-info-box {
+    width: 100%;
+    background: #FFF;
+    border-radius: 28rpx;
+    padding: 24rpx 28rpx;
+    margin-bottom: 24rpx;
+    border: 1px solid rgba(142, 68, 173, 0.12);
+    text-align: left;
+    box-sizing: border-box;
+    box-shadow: 0 4rpx 14rpx rgba(142, 68, 173, 0.04);
+
+    .pred-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8rpx;
+
+      .pred-icon {
+        font-size: 28rpx;
+        margin-right: 12rpx;
+      }
+      .pred-title {
+        font-size: 26rpx;
+        font-weight: 700;
+        color: #8E44AD;
+      }
+    }
+
+    .pred-desc {
+      font-size: 22rpx;
+      color: #7F8C8D;
+      line-height: 1.5;
+    }
+  }
+
+  .tips-pill {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 90, 121, 0.06);
+    padding: 14rpx 24rpx;
+    border-radius: 30rpx;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+
+    .tips-pill-icon {
+      font-size: 24rpx;
+      margin-right: 10rpx;
+      flex-shrink: 0;
+    }
+    .tips-pill-text {
+      font-size: 22rpx;
+      color: #FF5A79;
+      line-height: 1.4;
+    }
+  }
+}
+
+// 场景 B：历史空状态卡片特异样式
+.empty-card {
+  .empty-notice-box {
+    width: 100%;
+    background: #FFF;
+    border-radius: 24rpx;
+    padding: 20rpx 24rpx;
+    margin-bottom: 36rpx;
+    text-align: left;
+    border: 1px dashed rgba(255, 112, 136, 0.25);
+    box-sizing: border-box;
+
+    .empty-notice-text {
+      font-size: 22rpx;
+      color: #A39696;
+      line-height: 1.5;
+    }
+  }
+
+  .btn-back-today-log {
+    background: linear-gradient(135deg, #FF6F8B 0%, #FF4D6D 100%);
+    border-radius: 40rpx;
+    padding: 16rpx 48rpx;
+    border: none;
+    box-shadow: 0 8rpx 20rpx rgba(255, 77, 109, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .btn-back-text {
+      color: #FFF;
+      font-size: 26rpx;
+      font-weight: 600;
+    }
+
+    &:active {
+      transform: translateY(2rpx);
+      box-shadow: 0 4rpx 10rpx rgba(255, 77, 109, 0.1);
+    }
+  }
+}
+
+// 场景 C：历史归档卡片特异样式
+.history-archive-card {
+  align-items: stretch;
+  text-align: left;
+  padding: 36rpx 28rpx;
+
+  .archive-status-badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    background: #FFF0F2;
+    padding: 10rpx 24rpx;
+    border-radius: 20rpx;
+    margin-bottom: 24rpx;
+    border: 1px solid rgba(255, 90, 121, 0.18);
+
+    .status-icon {
+      font-size: 28rpx;
+      margin-right: 8rpx;
+    }
+    .status-text {
+      font-size: 24rpx;
+      font-weight: 700;
+      color: #FF5A79;
+    }
+  }
+
+  .archive-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16rpx;
+    margin-bottom: 24rpx;
+
+    .archive-metric-item {
+      background: #FFF;
+      border-radius: 20rpx;
+      padding: 18rpx 20rpx;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255, 112, 136, 0.06);
+
+      .metric-label {
+        font-size: 20rpx;
+        color: #A39696;
+        margin-bottom: 6rpx;
+      }
+      .metric-value {
+        font-size: 26rpx;
+        font-weight: 700;
+        color: #2D2727;
+      }
+
+      .color-preview-box {
+        display: flex;
+        align-items: center;
+
+        .mini-color-dot {
+          width: 22rpx;
+          height: 22rpx;
+          border-radius: 50%;
+          margin-right: 10rpx;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+      }
+    }
+  }
+
+  .archive-symptoms-section {
+    background: #FFF;
+    border-radius: 24rpx;
+    padding: 20rpx;
+    margin-bottom: 20rpx;
+    border: 1px solid rgba(255, 112, 136, 0.06);
+
+    .archive-symptoms-title {
+      font-size: 22rpx;
+      color: #A39696;
+      margin-bottom: 12rpx;
+      display: block;
+      font-weight: 600;
+    }
+
+    .archive-tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12rpx;
+
+      .archive-tag-pill {
+        background: #FFF0F2;
+        color: #FF5A79;
+        font-size: 22rpx;
+        padding: 6rpx 18rpx;
+        border-radius: 16rpx;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .archive-footer-tip {
+    text-align: center;
+    padding-top: 8rpx;
+
+    .footer-tip-text {
+      font-size: 20rpx;
+      color: #BDC3C7;
+    }
   }
 }
 
