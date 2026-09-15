@@ -1,6 +1,6 @@
 {
   "containerPort": 80,
-  "serviceName": "period-helper-service",
+  "serviceName": "period-helper",
   "minNum": 0,
   "maxNum": 5,
   "cpu": 0.5,

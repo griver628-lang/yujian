@@ -4,7 +4,7 @@ import type { ApiResponse } from '../types/index';
 // 若后期转传统云服务，只需将此参数改为 false，并配置 BASE_URL 即可
 const USE_CLOUD_CONTAINER = true;
 const BASE_URL = 'https://api.periodhelper.com/api/v1'; // 传统 ECS API 地址
-const CONTAINER_SERVICE_NAME = 'period-helper-service'; // 云托管服务名称
+const CONTAINER_SERVICE_NAME = 'period-helper';         // 云托管服务名称
 const CONTAINER_PATH_PREFIX = '/api/v1';                // 云托管服务内的 API 前缀
 
 /**
