@@ -39,7 +39,7 @@ export function request<T>(options: {
       // @ts-ignore
       wx.cloud.callContainer({
         config: {
-          env: 'prod-xxxxxx', // 微信云托管环境ID (开发阶段填入实际ID)
+          env: 'prod-d6gaj80107becb742', // 微信云托管环境ID
         },
         path: `${CONTAINER_PATH_PREFIX}${options.url}`,
         header: {
