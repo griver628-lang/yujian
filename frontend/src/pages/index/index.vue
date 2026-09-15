@@ -4,7 +4,10 @@
     <view class="fixed-nav-header" :style="{ height: (statusBarHeight + 44) + 'px' }">
       <view class="status-bar-fill" :style="{ height: statusBarHeight + 'px' }"></view>
       <view class="nav-bar-content">
-        <text class="nav-title">🌸 愈见</text>
+        <view class="nav-brand">
+          <image class="nav-logo-icon" src="/static/logo.png" mode="aspectFit" />
+          <text class="nav-title">愈见</text>
+        </view>
         <view class="nav-action" @tap="goToSettings">
           <text class="nav-btn-icon">⚙️</text>
         </view>
@@ -547,6 +550,11 @@ onShow(async () => {
       // 获取最新云端生理记录并刷新日历标识
       await userStore.fetchMonthlyRecords(String(currentYear.value), String(currentMonth.value));
       generateCalendarSwiperPages(currentYear.value, currentMonth.value);
+      // 若当前选中的日期已有健康记录，同步刷新当前表单/归档卡片
+      const existing = userStore.monthlyRecords.find(r => r.date === selectedDate.value);
+      if (existing) {
+        currentRecord.value = JSON.parse(JSON.stringify(existing));
+      }
       console.log('✅ [经期助手] 首页日历与生理数据全部就绪');
   } catch (err) {
     console.warn('云端初始化暂时等待中，已平滑展示本地日历', err);
@@ -1002,18 +1010,24 @@ const goToGlossary = () => {
 };
 
 const saveRecord = async () => {
-  // 数据类型强转
-  if (currentRecord.value.basalTemperature) {
-    currentRecord.value.basalTemperature = parseFloat(String(currentRecord.value.basalTemperature));
-  }
-  if (currentRecord.value.weight) {
-    currentRecord.value.weight = parseFloat(String(currentRecord.value.weight));
+  if (!currentRecord.value.date) {
+    currentRecord.value.date = selectedDate.value || formatDateString(new Date());
   }
 
-  const success = await userStore.saveDailyRecord(currentRecord.value);
-  if (success) {
-    // 重新刷新当月日历的圆圈标记
-    setYearMonth(currentYear.value, currentMonth.value);
+  uni.showLoading({
+    title: '正在保存...',
+    mask: true,
+  });
+
+  try {
+    const success = await userStore.saveDailyRecord(currentRecord.value);
+    if (success) {
+      // 重新刷新当月日历的圆圈标记
+      setYearMonth(currentYear.value, currentMonth.value);
+      generateCalendarSwiperPages(currentYear.value, currentMonth.value);
+    }
+  } finally {
+    uni.hideLoading();
   }
 };
 
@@ -1051,10 +1065,24 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
   padding: 0 40rpx;
   box-sizing: border-box;
 
-  .nav-title {
-    font-size: 34rpx;
-    font-weight: 700;
-    color: #2D2727;
+  .nav-brand {
+    display: flex;
+    align-items: center;
+
+    .nav-logo-icon {
+      width: 48rpx;
+      height: 48rpx;
+      border-radius: 14rpx;
+      margin-right: 14rpx;
+      box-shadow: 0 4rpx 12rpx rgba(255, 90, 121, 0.15);
+    }
+
+    .nav-title {
+      font-size: 36rpx;
+      font-weight: 700;
+      color: #2D2727;
+      letter-spacing: 1rpx;
+    }
   }
   
   .nav-btn-icon {

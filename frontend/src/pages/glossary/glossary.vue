@@ -1,7 +1,10 @@
 <template>
   <view class="glossary-container">
     <view class="search-header">
-      <text class="title">名词解释与科普</text>
+      <view class="brand-header-title">
+        <image class="glossary-brand-logo" src="/static/logo.png" mode="aspectFit" />
+        <text class="title">名词解释与科普</text>
+      </view>
       <text class="subtitle">帮你更好地理解身体所处的各个生理周期</text>
     </view>
 
@@ -148,12 +151,24 @@ const goToDetail = (id: string) => {
 .search-header {
   margin-bottom: 48rpx;
   
-  .title {
-    font-size: 40rpx;
-    font-weight: 600;
-    color: #2D2727;
-    display: block;
+  .brand-header-title {
+    display: flex;
+    align-items: center;
     margin-bottom: 12rpx;
+
+    .glossary-brand-logo {
+      width: 46rpx;
+      height: 46rpx;
+      border-radius: 14rpx;
+      margin-right: 14rpx;
+      box-shadow: 0 4rpx 10rpx rgba(255, 90, 121, 0.15);
+    }
+
+    .title {
+      font-size: 40rpx;
+      font-weight: 700;
+      color: #2D2727;
+    }
   }
   
   .subtitle {

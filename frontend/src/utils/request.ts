@@ -52,24 +52,27 @@ export function request<T>(options: {
           },
           method: options.method || 'GET',
           data: options.data,
-          timeout: 15000,
+          timeout: 30000,
           success: (res: any) => {
             // 拦截器逻辑
             handleResponse(res.data, resolve, reject);
           },
           fail: (err: any) => {
+            console.warn('⚠️ [经期助手] 云容器请求异常:', options.url, err);
             // 如果遇到冷启动超时（timeout），自动重试一次（此时容器已经被唤醒就绪）
-            const isTimeout = err?.errMsg?.includes('timeout') || err?.message?.includes('timeout');
+            const errStr = `${err?.errMsg || ''} ${err?.message || ''} ${String(err)}`;
+            const isTimeout = errStr.toLowerCase().includes('timeout');
             if (isTimeout && retryCount < 2) {
-              console.log('⏳ 云容器正在唤醒冷启动，1.5秒后自动重试...');
+              console.log(`⏳ 云容器正在唤醒冷启动，第 ${retryCount + 1} 次重试...`);
               setTimeout(() => {
                 doCall(retryCount + 1);
-              }, 1500);
+              }, 2000);
               return;
             }
             uni.showToast({
-              title: isTimeout ? '服务正在唤醒中，请稍后重试' : '云容器请求失败',
+              title: isTimeout ? '服务正在唤醒中，请稍后重试' : (err?.errMsg || '云容器请求失败'),
               icon: 'none',
+              duration: 3000,
             });
             reject(err);
           },

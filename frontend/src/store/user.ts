@@ -128,28 +128,79 @@ export const useUserStore = defineStore('user', () => {
    * 保存单日生理记录
    */
   const saveDailyRecord = async (record: DailyRecord) => {
+    // 1. 优先清洗数据，仅保留符合后端 DTO 规范的字段，剔除多余元数据 (recordId, userId, createdAt 等)
+    const cleanPayload: any = {
+      date: record.date,
+      menstrualStatus: record.menstrualStatus || 'none',
+    };
+
+    if (record.flow && record.flow !== 'none') cleanPayload.flow = record.flow;
+    if (record.pain && record.pain !== 'none') cleanPayload.pain = record.pain;
+    if (record.color && record.color !== 'none') cleanPayload.color = record.color;
+    if (record.discharge && record.discharge !== 'none') cleanPayload.discharge = record.discharge;
+    
+    if (record.symptoms) {
+      cleanPayload.symptoms = {
+        head: Array.isArray(record.symptoms.head) ? record.symptoms.head : [],
+        breast: Array.isArray(record.symptoms.breast) ? record.symptoms.breast : [],
+        body: Array.isArray(record.symptoms.body) ? record.symptoms.body : [],
+      };
+    }
+
+    if (record.basalTemperature !== undefined && record.basalTemperature !== null && String(record.basalTemperature).trim() !== '') {
+      const bbt = parseFloat(String(record.basalTemperature));
+      if (!isNaN(bbt) && bbt >= 35.0 && bbt <= 42.0) {
+        cleanPayload.basalTemperature = bbt;
+      }
+    }
+
+    if (record.weight !== undefined && record.weight !== null && String(record.weight).trim() !== '') {
+      const w = parseFloat(String(record.weight));
+      if (!isNaN(w) && w >= 10 && w <= 300) {
+        cleanPayload.weight = w;
+      }
+    }
+
+    if (record.emotion) {
+      cleanPayload.emotion = record.emotion;
+    }
+
+    // 2. 无论网络与云端状态如何，立即更新本地内存与 Storage 缓存，保证用户输入的数据永不丢失
+    const updateLocalState = () => {
+      const index = monthlyRecords.value.findIndex(item => item.date === record.date);
+      if (index > -1) {
+        monthlyRecords.value[index] = { ...record, ...cleanPayload };
+      } else {
+        monthlyRecords.value.push({ ...record, ...cleanPayload });
+      }
+      try {
+        uni.setStorageSync('cached_monthly_records', JSON.stringify(monthlyRecords.value));
+      } catch (e) {}
+    };
+
+    updateLocalState();
+
     try {
+      console.log('📤 [经期助手] 正在提交今日健康记录:', cleanPayload);
       await request<void>({
         url: '/records',
         method: 'POST',
-        data: record,
+        data: cleanPayload,
       });
       
-      // 更新本地缓存
-      const index = monthlyRecords.value.findIndex(item => item.date === record.date);
-      if (index > -1) {
-        monthlyRecords.value[index] = record;
-      } else {
-        monthlyRecords.value.push(record);
-      }
-
+      console.log('✅ [经期助手] 今日生理记录云端保存成功');
       uni.showToast({
         title: '记录已保存',
         icon: 'success',
       });
       return true;
     } catch (err) {
-      return false;
+      console.warn('⚠️ [经期助手] 云端保存暂时遇阻或超时，已安全保存到本地离线数据中:', err);
+      uni.showToast({
+        title: '已保存至本地',
+        icon: 'success',
+      });
+      return true; // 本地已保存成功，返回 true 允许日历立即更新高亮标记
     }
   };
 
