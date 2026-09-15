@@ -440,6 +440,7 @@ onShow(async () => {
       // 获取最新云端生理记录并刷新日历标识
       await userStore.fetchMonthlyRecords(String(currentYear.value), String(currentMonth.value));
       generateCalendarSwiperPages(currentYear.value, currentMonth.value);
+      console.log('✅ [经期助手] 首页日历与生理数据全部就绪');
   } catch (err) {
     console.warn('云端初始化暂时等待中，已平滑展示本地日历', err);
     generateCalendarSwiperPages(currentYear.value, currentMonth.value);

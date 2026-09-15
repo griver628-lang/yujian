@@ -45,6 +45,7 @@ export const useUserStore = defineStore('user', () => {
               userConfig.value.isFirstTime = res.data.isFirstTime;
             }
 
+            console.log('✅ [经期助手] 微信静默登录成功，首次状态:', res.data.isFirstTime);
             resolve(res.data.isFirstTime);
           } catch (err) {
             reject(err);
