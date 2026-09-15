@@ -321,8 +321,13 @@ const glossaryLinkText = ref('📚 名词解释 >');
 // 自定义导航栏相关
 const statusBarHeight = ref(20);
 onLoad(() => {
-  const sysInfo = uni.getSystemInfoSync();
-  statusBarHeight.value = sysInfo.statusBarHeight || 20;
+  try {
+    // @ts-ignore
+    const winInfo = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : (typeof uni.getSystemInfoSync === 'function' ? uni.getSystemInfoSync() : null);
+    statusBarHeight.value = winInfo?.statusBarHeight || 20;
+  } catch (e) {
+    statusBarHeight.value = 20;
+  }
 });
 
 // 状态控制
@@ -418,6 +423,7 @@ onLoad(() => {
   const today = new Date();
   setYearMonth(today.getFullYear(), today.getMonth() + 1);
   selectedDate.value = formatDateString(today);
+  generateCalendarSwiperPages(today.getFullYear(), today.getMonth() + 1);
 });
 
 onShow(async () => {
@@ -435,7 +441,8 @@ onShow(async () => {
       await userStore.fetchMonthlyRecords(String(currentYear.value), String(currentMonth.value));
       generateCalendarSwiperPages(currentYear.value, currentMonth.value);
   } catch (err) {
-    console.error('初始化登录或加载数据失败，降级为本地离线显示', err);
+    console.warn('云端初始化暂时等待中，已平滑展示本地日历', err);
+    generateCalendarSwiperPages(currentYear.value, currentMonth.value);
   }
 });
 
