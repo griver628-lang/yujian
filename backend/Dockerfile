@@ -7,7 +7,6 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
-COPY prisma.config.ts ./
 COPY prisma ./prisma/
 
 # 安装依赖并生成 Prisma Client
@@ -32,7 +31,6 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./
 
 # 暴露微信云托管容器默认的 80 端口
 EXPOSE 80
