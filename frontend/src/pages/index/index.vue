@@ -322,9 +322,15 @@ const glossaryLinkText = ref('📚 名词解释 >');
 const statusBarHeight = ref(20);
 onLoad(() => {
   try {
+    let sbHeight = 20;
     // @ts-ignore
-    const winInfo = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : (typeof uni.getSystemInfoSync === 'function' ? uni.getSystemInfoSync() : null);
-    statusBarHeight.value = winInfo?.statusBarHeight || 20;
+    if (typeof wx !== 'undefined' && typeof wx.getWindowInfo === 'function') {
+      // @ts-ignore
+      sbHeight = wx.getWindowInfo().statusBarHeight || 20;
+    } else if (typeof uni !== 'undefined' && typeof uni.getWindowInfo === 'function') {
+      sbHeight = uni.getWindowInfo().statusBarHeight || 20;
+    }
+    statusBarHeight.value = sbHeight;
   } catch (e) {
     statusBarHeight.value = 20;
   }
@@ -861,11 +867,13 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
 }
 
 .week-days {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  box-sizing: border-box;
   margin-bottom: 16rpx;
   
   .week-day {
-    flex: 1;
     text-align: center;
     font-size: 24rpx;
     color: #A39696;
@@ -875,16 +883,21 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
 
 .calendar-swiper {
   height: 480rpx;
+  width: 100%;
 }
 
 .days-grid {
-  display: flex;
-  flex-wrap: wrap;
-  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 80rpx);
+  width: 100%;
+  height: 480rpx;
+  box-sizing: border-box;
 }
 
 .day-cell {
-  width: 14.28%;
+  box-sizing: border-box;
+  width: 100%;
   height: 80rpx;
   display: flex;
   flex-direction: column;
@@ -897,6 +910,7 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
     font-weight: 600;
     color: #2D2727;
     z-index: 2;
+    position: relative;
   }
   
   &.not-current-month .day-num {
@@ -906,6 +920,7 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
   &.is-today {
     .day-num {
       color: #FF5A79;
+      font-weight: 700;
     }
     &::after {
       content: '';
@@ -920,9 +935,23 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
   }
   
   &.is-selected {
-    border-radius: 20rpx;
-    background-color: rgba(255, 90, 121, 0.08);
-    border: 1px solid rgba(255, 90, 121, 0.2);
+    .day-num {
+      color: #FF5A79;
+      font-weight: 700;
+    }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 4rpx;
+      bottom: 4rpx;
+      left: 6rpx;
+      right: 6rpx;
+      border-radius: 18rpx;
+      background-color: rgba(255, 90, 121, 0.12);
+      border: 2rpx solid rgba(255, 90, 121, 0.5);
+      z-index: 0;
+      box-sizing: border-box;
+    }
   }
   
   // 生理期标记圈样式
@@ -932,6 +961,7 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
     height: 60rpx;
     border-radius: 50%;
     z-index: 1;
+    box-sizing: border-box;
     
     &.type-menstrual {
       background-color: rgba(255, 112, 136, 0.15);

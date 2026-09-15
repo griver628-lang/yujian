@@ -8,7 +8,7 @@
       <!-- 头部图标及标题 -->
       <view class="header-section">
         <view class="logo-wrapper">
-          <text class="heart-icon">🌸</text>
+          <image class="app-logo-img" src="/static/logo.png" mode="aspectFit" />
         </view>
         <text class="app-title">愈见</text>
         <text class="app-subtitle">你的专属女性生理期管理管家</text>
@@ -204,6 +204,13 @@ const handleBack = () => {
     justify-content: center;
     box-shadow: 0 10rpx 30rpx rgba(255, 112, 136, 0.1);
     margin-bottom: 24rpx;
+    
+    .app-logo-img {
+      width: 140rpx;
+      height: 140rpx;
+      border-radius: 36rpx;
+      box-shadow: 0 10rpx 30rpx rgba(255, 112, 136, 0.15);
+    }
     
     .heart-icon {
       font-size: 70rpx;

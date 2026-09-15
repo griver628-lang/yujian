@@ -19,4 +19,9 @@ onHide(() => {
   console.log("App Hide");
 });
 </script>
-<style></style>
+<style>
+/* 全局重置盒模型，防止任何边框与内边距引起页面元素错位 */
+page, view, text, swiper, swiper-item, scroll-view {
+  box-sizing: border-box;
+}
+</style>
