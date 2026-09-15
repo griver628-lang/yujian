@@ -38,4 +38,4 @@ COPY --from=builder /app/prisma.config.ts ./
 EXPOSE 80
 
 # 容器启动命令：先执行数据库同步（无损更新表结构），再启动 NestJS 实例
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/src/main.js"]
