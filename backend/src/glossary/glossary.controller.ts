@@ -1,6 +1,11 @@
 import {
-  Controller, Get, Post, Delete,
-  Param, Body, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
 } from '@nestjs/common';
 import { GlossaryService, CreateGlossaryDto } from './glossary.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';

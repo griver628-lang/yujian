@@ -1,6 +1,12 @@
 import {
-  IsString, IsDateString, IsOptional, IsNumber,
-  IsIn, Min, Max, IsObject,
+  IsString,
+  IsDateString,
+  IsOptional,
+  IsNumber,
+  IsIn,
+  Min,
+  Max,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -19,19 +25,27 @@ export class SaveRecordDto {
   menstrualStatus?: string;
 
   @IsOptional()
-  @IsIn(['none', 'micro', 'light', 'medium', 'heavy', 'extreme'], { message: '经量枚举值不合法' })
+  @IsIn(['none', 'micro', 'light', 'medium', 'heavy', 'extreme'], {
+    message: '经量枚举值不合法',
+  })
   flow?: string;
 
   @IsOptional()
-  @IsIn(['none', 'mild', 'moderate', 'severe', 'extreme'], { message: '痛经枚举值不合法' })
+  @IsIn(['none', 'mild', 'moderate', 'severe', 'extreme'], {
+    message: '痛经枚举值不合法',
+  })
   pain?: string;
 
   @IsOptional()
-  @IsIn(['none', 'light_red', 'bright_red', 'deep_red', 'dark_red', 'black'], { message: '经血颜色枚举值不合法' })
+  @IsIn(['none', 'light_red', 'bright_red', 'deep_red', 'dark_red', 'black'], {
+    message: '经血颜色枚举值不合法',
+  })
   color?: string;
 
   @IsOptional()
-  @IsIn(['none', 'dry', 'sticky', 'pasty', 'watery', 'egg_white'], { message: '分泌物枚举值不合法' })
+  @IsIn(['none', 'dry', 'sticky', 'pasty', 'watery', 'egg_white'], {
+    message: '分泌物枚举值不合法',
+  })
   discharge?: string;
 
   @IsOptional()
@@ -52,7 +66,9 @@ export class SaveRecordDto {
   weight?: number;
 
   @IsOptional()
-  @IsIn(['happy', 'normal', 'unhappy', 'annoyed', 'irritable'], { message: '情绪类型不匹配，请选择系统规定的情绪选项' })
+  @IsIn(['happy', 'normal', 'unhappy', 'annoyed', 'irritable'], {
+    message: '情绪类型不匹配，请选择系统规定的情绪选项',
+  })
   emotion?: string;
 
   @IsOptional()

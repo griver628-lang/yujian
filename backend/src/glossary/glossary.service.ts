@@ -224,7 +224,9 @@ export class GlossaryService implements OnModuleInit {
         },
       });
     }
-    console.log(`✅ [科普词库] 成功初始化/同步 ${INITIAL_GLOSSARY_TERMS.length} 条女性健康科普名词数据`);
+    console.log(
+      `✅ [科普词库] 成功初始化/同步 ${INITIAL_GLOSSARY_TERMS.length} 条女性健康科普名词数据`,
+    );
   }
 
   /** 获取科普名词列表（若数据库为空则自愈初始化） */

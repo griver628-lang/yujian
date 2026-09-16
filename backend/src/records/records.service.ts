@@ -24,7 +24,11 @@ export class RecordsService {
   async saveRecord(userId: string, dto: SaveRecordDto) {
     // 闭环状态机校验
     if (dto.menstrualStatus === 'start' || dto.menstrualStatus === 'end') {
-      await this.validateMenstrualStateMachine(userId, dto.date, dto.menstrualStatus);
+      await this.validateMenstrualStateMachine(
+        userId,
+        dto.date,
+        dto.menstrualStatus,
+      );
     }
 
     const recordId = `${dto.date}_${userId}`;
@@ -59,10 +63,12 @@ export class RecordsService {
     });
 
     // 异步刷新用户最后活跃时间
-    this.prisma.userConfig.update({
-      where: { userId },
-      data: { lastActiveAt: new Date() },
-    }).catch(() => {});
+    this.prisma.userConfig
+      .update({
+        where: { userId },
+        data: { lastActiveAt: new Date() },
+      })
+      .catch(() => {});
 
     return record;
   }

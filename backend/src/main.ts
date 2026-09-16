@@ -21,9 +21,9 @@ async function bootstrap() {
   // 全局 DTO 参数校验管道
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,           // 自动去除未定义字段
+      whitelist: true, // 自动去除未定义字段
       forbidNonWhitelisted: false, // 允许自动剥离只读属性（如 createdAt/updatedAt 等），避免抛 400
-      transform: true,           // 请求数据自动转换为 DTO 类实例
+      transform: true, // 请求数据自动转换为 DTO 类实例
     }),
   );
 

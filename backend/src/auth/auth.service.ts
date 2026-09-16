@@ -3,6 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
 import * as https from 'https';
 
+interface WxSessionResponse {
+  openid?: string;
+  session_key?: string;
+  unionid?: string;
+  errcode?: number;
+  errmsg?: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
@@ -13,7 +21,7 @@ export class AuthService {
   async wxLogin(code: string, cloudOpenId?: string) {
     // 云托管环境：微信内网网关自动注入 openid，跳过 API 调用
     // 标准环境：通过 code 换取 openid
-    const openid = cloudOpenId || await this.getWxOpenId(code);
+    const openid = cloudOpenId || (await this.getWxOpenId(code));
 
     // 2. 在数据库中查找或创建用户配置
     const existingConfig = await this.prisma.userConfig.findUnique({
@@ -77,18 +85,36 @@ export class AuthService {
     const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${code}&grant_type=authorization_code`;
 
     return new Promise((resolve, reject) => {
-      https.get(url, (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => {
-          const parsed = JSON.parse(data);
-          if (parsed.openid) {
-            resolve(parsed.openid);
-          } else {
-            reject(new BadRequestException(`微信 code 无效: ${parsed.errmsg}`));
-          }
+      https
+        .get(url, (res) => {
+          let data = '';
+          res.on('data', (chunk: Buffer | string) => {
+            data += chunk.toString();
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data) as WxSessionResponse;
+              if (parsed.openid) {
+                resolve(parsed.openid);
+              } else {
+                reject(
+                  new BadRequestException(
+                    `微信 code 无效: ${parsed.errmsg || '未知错误'}`,
+                  ),
+                );
+              }
+            } catch (err: unknown) {
+              reject(
+                new BadRequestException(
+                  `解析微信登录响应失败: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+              );
+            }
+          });
+        })
+        .on('error', (err) => {
+          reject(err);
         });
-      }).on('error', reject);
     });
   }
 }

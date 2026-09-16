@@ -59,7 +59,11 @@ export class AdminService {
     const now = new Date();
 
     // 当日 0 点
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     // 7天前、14天前、30天前
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -77,13 +81,25 @@ export class AdminService {
       avgConfig,
     ] = await Promise.all([
       this.prisma.userConfig.count(),
-      this.prisma.userConfig.count({ where: { createdAt: { gte: todayStart } } }),
-      this.prisma.userConfig.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      this.prisma.userConfig.count({ where: { lastActiveAt: { gte: todayStart } } }),
-      this.prisma.userConfig.count({ where: { lastActiveAt: { gte: sevenDaysAgo } } }),
-      this.prisma.userConfig.count({ where: { lastActiveAt: { gte: thirtyDaysAgo } } }),
+      this.prisma.userConfig.count({
+        where: { createdAt: { gte: todayStart } },
+      }),
+      this.prisma.userConfig.count({
+        where: { createdAt: { gte: sevenDaysAgo } },
+      }),
+      this.prisma.userConfig.count({
+        where: { lastActiveAt: { gte: todayStart } },
+      }),
+      this.prisma.userConfig.count({
+        where: { lastActiveAt: { gte: sevenDaysAgo } },
+      }),
+      this.prisma.userConfig.count({
+        where: { lastActiveAt: { gte: thirtyDaysAgo } },
+      }),
       this.prisma.dailyRecord.count(),
-      this.prisma.dailyRecord.count({ where: { createdAt: { gte: todayStart } } }),
+      this.prisma.dailyRecord.count({
+        where: { createdAt: { gte: todayStart } },
+      }),
       this.prisma.userConfig.aggregate({
         _avg: {
           periodCycle: true,
@@ -108,12 +124,17 @@ export class AdminService {
     });
 
     // 14 天每日趋势数据
-    const trend: Array<{ date: string; newUsers: number; records: number }> = [];
+    const trend: Array<{ date: string; newUsers: number; records: number }> =
+      [];
     const trendPromises: Promise<void>[] = [];
 
     for (let i = 13; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const nextD = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1);
+      const nextD = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i + 1,
+      );
       const dateStr = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
       trendPromises.push(
@@ -146,7 +167,8 @@ export class AdminService {
       totalRecords,
       todayRecords,
       avgPeriodCycle: Math.round((avgConfig._avg.periodCycle || 28) * 10) / 10,
-      avgPeriodDuration: Math.round((avgConfig._avg.periodDuration || 5) * 10) / 10,
+      avgPeriodDuration:
+        Math.round((avgConfig._avg.periodDuration || 5) * 10) / 10,
       trend,
     };
   }
@@ -184,10 +206,7 @@ export class AdminService {
 
     if (filter === 'new') {
       // 新用户：7天内注册 或 仍处于首次配置状态
-      where.OR = [
-        { createdAt: { gte: sevenDaysAgo } },
-        { isFirstTime: true },
-      ];
+      where.OR = [{ createdAt: { gte: sevenDaysAgo } }, { isFirstTime: true }];
     } else if (filter === 'active') {
       // 活跃用户：近7天内有活跃
       where.lastActiveAt = { gte: sevenDaysAgo };

@@ -60,7 +60,8 @@ export class AdminController {
     @Query('key') queryKey?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
-    @Query('filter') filter?: 'all' | 'new' | 'active' | 'established' | 'dormant',
+    @Query('filter')
+    filter?: 'all' | 'new' | 'active' | 'established' | 'dormant',
     @Query('search') search?: string,
   ) {
     const key = headerKey || queryKey;

@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { RecordsService } from './records.service';
 import { SaveRecordDto } from './dto/save-record.dto';
 import { MonthlyQueryDto } from './dto/monthly-query.dto';
@@ -23,7 +31,10 @@ export class RecordsController {
 
   /** POST /api/v1/records/sync */
   @Post('sync')
-  syncRecords(@Req() req: any, @Body('records') records: Partial<SaveRecordDto>[]) {
+  syncRecords(
+    @Req() req: any,
+    @Body('records') records: Partial<SaveRecordDto>[],
+  ) {
     return this.recordsService.syncRecords(req.userId, records);
   }
 }

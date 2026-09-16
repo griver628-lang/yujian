@@ -19,7 +19,10 @@ export class JwtAuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1];
 
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET || 'default_secret') as any;
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET || 'default_secret',
+      ) as any;
       // 将解码的 userId 注入到请求上下文中，供 Controller 直接读取
       request.userId = payload.userId;
       return true;

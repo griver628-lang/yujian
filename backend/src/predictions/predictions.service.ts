@@ -26,7 +26,12 @@ export class PredictionsService {
     const isIrregular = this.checkIrregular(startDates);
 
     const baseDate = recentStart || new Date().toISOString().split('T')[0];
-    return this.buildPrediction(baseDate, avgCycle, config.periodDuration, isIrregular);
+    return this.buildPrediction(
+      baseDate,
+      avgCycle,
+      config.periodDuration,
+      isIrregular,
+    );
   }
 
   /** 加权移动平均，自动剔除 >60 天的异常间隔 */
@@ -55,7 +60,9 @@ export class PredictionsService {
     }
     if (intervals.length < 2) return false;
     const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const variance = intervals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / intervals.length;
+    const variance =
+      intervals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) /
+      intervals.length;
     return Math.sqrt(variance) > 3;
   }
 
@@ -88,7 +95,9 @@ export class PredictionsService {
   }
 
   private dateDiff(a: string, b: string): number {
-    return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+    return Math.round(
+      (new Date(b).getTime() - new Date(a).getTime()) / 86400000,
+    );
   }
 
   private addDays(dateStr: string, days: number): string {

@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
-import { GlossaryController, AdminGlossaryController } from './glossary.controller';
+import {
+  GlossaryController,
+  AdminGlossaryController,
+} from './glossary.controller';
 import { GlossaryService } from './glossary.service';
 
 @Module({
