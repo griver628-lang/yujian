@@ -13,7 +13,13 @@ import { map } from 'rxjs/operators';
  */
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<T, any> {
-  intercept(_ctx: ExecutionContext, next: CallHandler<T>): Observable<any> {
+  intercept(ctx: ExecutionContext, next: CallHandler<T>): Observable<any> {
+    const req = ctx.switchToHttp().getRequest();
+    // 如果是管理后台页面请求（非 json api），直接放行
+    if (req.url === '/admin' || req.url === '/admin/') {
+      return next.handle();
+    }
+
     return next.handle().pipe(
       map((data) => ({
         code: 200,

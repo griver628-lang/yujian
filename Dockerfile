@@ -38,5 +38,5 @@ RUN if [ -f dist/src/main.js ] && [ ! -f dist/main.js ]; then cp -f dist/src/mai
 # 暴露微信云托管容器默认的 80 端口
 EXPOSE 80
 
-# 容器启动命令：先执行数据库同步，再启动 NestJS 实例
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/src/main.js"]
+# 容器启动命令：后台异步同步数据库，立即启动 NestJS 服务监听 80 端口，避免冷启动超时
+CMD ["sh", "-c", "(npx prisma db push --accept-data-loss 2>&1 || true) & node dist/src/main.js"]

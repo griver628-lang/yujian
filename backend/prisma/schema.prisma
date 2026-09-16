@@ -15,9 +15,15 @@ model UserConfig {
   periodCycle    Int      @default(28) @map("period_cycle") // 平均周期长度天数 (20-45)
   periodDuration Int      @default(5) @map("period_duration") // 经期持续天数 (2-15)
   isFirstTime    Boolean  @default(true) @map("is_first_time") // 是否首次配置
+  nickname       String?  @map("nickname") // 微信昵称（预留自愿填写）
+  avatarUrl      String?  @map("avatar_url") // 微信头像（预留自愿选择）
+  lastActiveAt   DateTime @default(now()) @map("last_active_at") // 最后活跃时间
+  visitCount     Int      @default(1) @map("visit_count") // 累计访问次数
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  @@index([lastActiveAt])
+  @@index([createdAt])
   @@map("user_configs")
 }
 

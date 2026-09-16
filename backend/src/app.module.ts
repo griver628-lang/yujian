@@ -8,6 +8,7 @@ import { UserModule } from './user/user.module';
 import { RecordsModule } from './records/records.module';
 import { PredictionsModule } from './predictions/predictions.module';
 import { GlossaryModule } from './glossary/glossary.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GlossaryModule } from './glossary/glossary.module';
     RecordsModule,
     PredictionsModule,
     GlossaryModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

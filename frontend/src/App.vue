@@ -5,11 +5,15 @@ onLaunch(() => {
   // 初始化微信云环境
   // @ts-ignore
   if (typeof wx !== "undefined" && wx.cloud) {
-    // @ts-ignore
-    wx.cloud.init({
-      env: "prod-d6gaj80107becb742",
-      traceUser: true,
-    });
+    try {
+      // @ts-ignore
+      wx.cloud.init({
+        env: "prod-d6gaj80107becb742",
+        traceUser: true,
+      });
+    } catch (e) {
+      console.warn("微信云托管初始化异常:", e);
+    }
   }
 });
 onShow(() => {

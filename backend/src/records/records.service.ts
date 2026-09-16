@@ -29,7 +29,7 @@ export class RecordsService {
 
     const recordId = `${dto.date}_${userId}`;
 
-    return this.prisma.dailyRecord.upsert({
+    const record = await this.prisma.dailyRecord.upsert({
       where: { recordId },
       create: {
         recordId,
@@ -57,6 +57,14 @@ export class RecordsService {
         emotion: dto.emotion,
       },
     });
+
+    // 异步刷新用户最后活跃时间
+    this.prisma.userConfig.update({
+      where: { userId },
+      data: { lastActiveAt: new Date() },
+    }).catch(() => {});
+
+    return record;
   }
 
   /** 离线增量批量同步（客户端最新时间戳优先） */

@@ -7,8 +7,10 @@ import { GlobalExceptionFilter } from './common/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // 全局 API 前缀
-  app.setGlobalPrefix('api/v1');
+  // 全局 API 前缀（排除根路径 /、health 探针与 admin 页面及接口，供外部与微信云托管直接访问）
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['/', 'health', 'admin', 'admin/*path'],
+  });
 
   // 全局统一响应格式拦截器：{ code, message, data }
   app.useGlobalInterceptors(new ResponseInterceptor());

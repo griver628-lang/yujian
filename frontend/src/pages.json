@@ -38,5 +38,6 @@
 		"navigationBarBackgroundColor": "#FFF5F5",
 		"backgroundColor": "#FFFDFD",
 		"enablePullDownRefresh": false
-	}
+	},
+	"lazyCodeLoading": "requiredComponents"
 }

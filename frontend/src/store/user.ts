@@ -18,7 +18,11 @@ export const useUserStore = defineStore('user', () => {
    * 静默登录换取登录态
    */
   const wxLogin = () => {
-    return new Promise<boolean>((resolve, reject) => {
+    return new Promise<boolean>((resolve) => {
+      // 检查本地是否有已存配置，决定降级时是否进入引导页
+      const localConfig = uni.getStorageSync('user_config');
+      const isConfigured = !!localConfig;
+
       uni.login({
         provider: 'weixin',
         success: async (loginRes) => {
@@ -41,6 +45,9 @@ export const useUserStore = defineStore('user', () => {
                 ...res.data.userConfig,
                 isFirstTime: res.data.isFirstTime,
               };
+              try {
+                uni.setStorageSync('user_config', JSON.stringify(userConfig.value));
+              } catch (e) {}
             } else {
               userConfig.value.isFirstTime = res.data.isFirstTime;
             }
@@ -48,15 +55,14 @@ export const useUserStore = defineStore('user', () => {
             console.log('✅ [经期助手] 微信静默登录成功，首次状态:', res.data.isFirstTime);
             resolve(res.data.isFirstTime);
           } catch (err) {
-            reject(err);
+            console.warn('⚠️ [经期助手] 云端登录暂未响应，已自动平滑启用本地模式:', err);
+            // 降级策略：如果本地已有设置，不强制跳转引导页，而是进入主页
+            resolve(!isConfigured);
           }
         },
         fail: (err) => {
-          uni.showToast({
-            title: '微信登录授权失败',
-            icon: 'none',
-          });
-          reject(err);
+          console.warn('⚠️ [经期助手] 微信登录授权遇到问题，自动启用本地模式:', err);
+          resolve(!isConfigured);
         },
       });
     });
@@ -66,6 +72,14 @@ export const useUserStore = defineStore('user', () => {
    * 加载用户基础设置
    */
   const fetchConfig = async () => {
+    // 优先读取本地持久化设置
+    try {
+      const local = uni.getStorageSync('user_config');
+      if (local) {
+        userConfig.value = JSON.parse(local);
+      }
+    } catch (e) {}
+
     try {
       const res = await request<UserConfig>({
         url: '/user/config',
@@ -75,8 +89,11 @@ export const useUserStore = defineStore('user', () => {
         ...res.data,
         isFirstTime: false,
       };
+      try {
+        uni.setStorageSync('user_config', JSON.stringify(userConfig.value));
+      } catch (e) {}
     } catch (err) {
-      console.error('加载用户设置失败', err);
+      console.warn('加载云端用户设置暂时等待中，已加载本地设置');
     }
   };
 
@@ -84,6 +101,17 @@ export const useUserStore = defineStore('user', () => {
    * 保存/修改用户设置
    */
   const saveConfig = async (cycle: number, duration: number) => {
+    // 1. 本地状态立即持久化生效
+    userConfig.value = {
+      ...userConfig.value,
+      periodCycle: cycle,
+      periodDuration: duration,
+      isFirstTime: false,
+    };
+    try {
+      uni.setStorageSync('user_config', JSON.stringify(userConfig.value));
+    } catch (e) {}
+
     try {
       const res = await request<UserConfig>({
         url: '/user/config',
@@ -103,7 +131,12 @@ export const useUserStore = defineStore('user', () => {
       });
       return true;
     } catch (err) {
-      return false;
+      console.warn('⚠️ [经期助手] 云端保存配置暂未响应，已安全保存至本地配置:', err);
+      uni.showToast({
+        title: '已保存至本地',
+        icon: 'success',
+      });
+      return true;
     }
   };
 
@@ -111,16 +144,29 @@ export const useUserStore = defineStore('user', () => {
    * 按月加载历史记录
    */
   const fetchMonthlyRecords = async (year: string, month: string) => {
+    // 优先加载本地缓存
+    try {
+      const cached = uni.getStorageSync('cached_monthly_records');
+      if (cached) {
+        monthlyRecords.value = JSON.parse(cached);
+      }
+    } catch (e) {}
+
     try {
       const res = await request<DailyRecord[]>({
         url: '/records/monthly',
         method: 'GET',
         data: { year, month },
       });
-      monthlyRecords.value = res.data;
-      return res.data;
+      if (Array.isArray(res.data)) {
+        monthlyRecords.value = res.data;
+        try {
+          uni.setStorageSync('cached_monthly_records', JSON.stringify(res.data));
+        } catch (e) {}
+      }
+      return monthlyRecords.value;
     } catch (err) {
-      return [];
+      return monthlyRecords.value;
     }
   };
 

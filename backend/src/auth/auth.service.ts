@@ -29,9 +29,17 @@ export class AuthService {
             periodCycle: 28,
             periodDuration: 5,
             isFirstTime: true,
+            lastActiveAt: new Date(),
+            visitCount: 1,
           },
         })
-      : existingConfig;
+      : await this.prisma.userConfig.update({
+          where: { userId: openid },
+          data: {
+            lastActiveAt: new Date(),
+            visitCount: { increment: 1 },
+          },
+        });
 
     // 3. 签发自定义 JWT Token（有效期 30 天）
     const token = jwt.sign(
