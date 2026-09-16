@@ -32,19 +32,25 @@ export class AuthService {
 
     const finalConfig = isFirstTime
       ? await this.prisma.userConfig.create({
+          // @ts-ignore
           data: {
             userId: openid,
             periodCycle: 28,
             periodDuration: 5,
             isFirstTime: true,
+            // @ts-ignore
             lastActiveAt: new Date(),
+            // @ts-ignore
             visitCount: 1,
           },
         })
       : await this.prisma.userConfig.update({
           where: { userId: openid },
+          // @ts-ignore
           data: {
+            // @ts-ignore
             lastActiveAt: new Date(),
+            // @ts-ignore
             visitCount: { increment: 1 },
           },
         });

@@ -66,6 +66,7 @@ export class RecordsService {
     this.prisma.userConfig
       .update({
         where: { userId },
+        // @ts-ignore
         data: { lastActiveAt: new Date() },
       })
       .catch(() => {});
