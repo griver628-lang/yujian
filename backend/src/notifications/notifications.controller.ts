@@ -22,7 +22,10 @@ export class NotificationsController {
    */
   @Post('test-send')
   async testSend(@Req() req: any, @Body() body: { miniprogramState?: string; templateId?: string }) {
-    return this.notificationsService.testSend(req.userId, body?.miniprogramState, body?.templateId);
+    // 微信云托管在 callContainer 时会在 headers 自动注入 x-wx-openid 和 x-wx-cloudbase-access-token
+    const targetUserId = req.headers['x-wx-openid'] || req.userId;
+    const cloudToken = req.headers['x-wx-cloudbase-access-token'] || req.headers['x-wx-token'];
+    return this.notificationsService.testSend(targetUserId, body?.miniprogramState, body?.templateId, cloudToken);
   }
 
   /**

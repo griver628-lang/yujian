@@ -86,8 +86,9 @@ export class NotificationsService {
     page?: string;
     data: Record<string, { value: string }>;
     miniprogramState?: string;
+    cloudToken?: string;
   }): Promise<{ success: boolean; errCode?: number; errMsg?: string }> {
-    const { userId, templateId, page = 'pages/index/index', data, miniprogramState } = params;
+    const { userId, templateId, page = 'pages/index/index', data, miniprogramState, cloudToken } = params;
 
     // 优先使用前端传入的当前小程序版本状态 (developer/trial/formal)，开发/体验调试时不能传 formal
     const state = miniprogramState || 'developer';
@@ -101,19 +102,28 @@ export class NotificationsService {
       lang: 'zh_CN',
     };
 
-    this.logger.log(`📤 [微信服务通知] 准备下发: touser=${userId}, templateId=${templateId}, state=${state}`);
+    this.logger.log(`📤 [微信服务通知] 准备下发: touser=${userId}, templateId=${templateId}, state=${state}, hasToken=${!!cloudToken}`);
 
-    // 1. 尝试微信云托管内网免鉴权调用通道 (无需自己维护 token)
+    // 1. 尝试微信云托管调用通道（支持带 cloudbase_access_token 或纯内网免鉴权）
     try {
-      const cloudRes = await fetch('http://api.weixin.qq.com/cgi-bin/message/subscribe/send', {
+      const targetUrl = cloudToken
+        ? `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?cloudbase_access_token=${cloudToken}`
+        : 'http://api.weixin.qq.com/cgi-bin/message/subscribe/send';
+
+      const reqHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(cloudToken ? { 'x-wx-cloudbase-access-token': cloudToken } : {}),
+      };
+
+      const cloudRes = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: reqHeaders,
         body: JSON.stringify(payload),
       });
       const cloudData = await cloudRes.json();
-      this.logger.log(`📥 [微信服务通知] 云托管微信接口返回: ${JSON.stringify(cloudData)}`);
+      this.logger.log(`📥 [微信服务通知] 微信接口响应: ${JSON.stringify(cloudData)}`);
       if (cloudData.errcode === 0) {
-        this.logger.log(`✅ [微信服务通知-云托管免鉴权] 发送成功给 ${userId}`);
+        this.logger.log(`✅ [微信服务通知-成功送达] 用户: ${userId}`);
         await this.decrementSubscriptionCount(userId, templateId);
         return { success: true };
       } else {
@@ -121,9 +131,9 @@ export class NotificationsService {
         if (cloudData.errcode === 43101 && state === 'developer') {
           this.logger.log(`🔄 尝试以 trial(体验版) 状态重试下发...`);
           payload.miniprogram_state = 'trial';
-          const retryRes = await fetch('http://api.weixin.qq.com/cgi-bin/message/subscribe/send', {
+          const retryRes = await fetch(targetUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: reqHeaders,
             body: JSON.stringify(payload),
           });
           const retryData = await retryRes.json();
@@ -133,7 +143,7 @@ export class NotificationsService {
             return { success: true };
           }
         }
-        this.logger.warn(`❌ [微信服务通知-云托管免鉴权] 微信返回失败: errcode=${cloudData.errcode}, errmsg=${cloudData.errmsg}`);
+        this.logger.warn(`❌ [微信服务通知-微信返回失败]: errcode=${cloudData.errcode}, errmsg=${cloudData.errmsg}`);
         return { success: false, errCode: cloudData.errcode, errMsg: cloudData.errmsg };
       }
     } catch (e: any) {
@@ -273,7 +283,7 @@ export class NotificationsService {
   /**
    * 测试向当前用户发送一条模拟服务通知
    */
-  async testSend(userId: string, miniprogramState?: string, customTemplateId?: string) {
+  async testSend(userId: string, miniprogramState?: string, customTemplateId?: string, cloudToken?: string) {
     const sub = await this.prisma.userSubscription.findFirst({
       where: { userId, count: { gt: 0 } },
     });
@@ -300,6 +310,7 @@ export class NotificationsService {
       page: `pages/index/index?from=notification&action=record&date=${todayStr}`,
       data: messageData,
       miniprogramState,
+      cloudToken,
     });
 
     return {
