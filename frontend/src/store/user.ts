@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { UserConfig, DailyRecord } from '../types/index';
+import type { UserConfig, DailyRecord, PredictionData } from '../types/index';
 import { request } from '../utils/request';
 
 export const useUserStore = defineStore('user', () => {
@@ -9,6 +9,12 @@ export const useUserStore = defineStore('user', () => {
     periodCycle: 28,
     periodDuration: 5,
     isFirstTime: true,
+    musicEnabled: true,
+    soundEffectsEnabled: true,
+    notificationEnabled: true,
+    remindDailyRecord: true,
+    remindPeriodStart: true,
+    remindOvulation: true,
   });
   
   // 缓存当月记录
@@ -42,6 +48,7 @@ export const useUserStore = defineStore('user', () => {
 
             if (res.data.userConfig) {
               userConfig.value = {
+                ...userConfig.value,
                 ...res.data.userConfig,
                 isFirstTime: res.data.isFirstTime,
               };
@@ -69,14 +76,14 @@ export const useUserStore = defineStore('user', () => {
   };
 
   /**
-   * 加载用户基础设置
+   * 加载用户基础设置与个性化偏好
    */
   const fetchConfig = async () => {
     // 优先读取本地持久化设置
     try {
       const local = uni.getStorageSync('user_config');
       if (local) {
-        userConfig.value = JSON.parse(local);
+        userConfig.value = { ...userConfig.value, ...JSON.parse(local) };
       }
     } catch (e) {}
 
@@ -86,6 +93,7 @@ export const useUserStore = defineStore('user', () => {
         method: 'GET',
       });
       userConfig.value = {
+        ...userConfig.value,
         ...res.data,
         isFirstTime: false,
       };
@@ -100,12 +108,24 @@ export const useUserStore = defineStore('user', () => {
   /**
    * 保存/修改用户设置
    */
-  const saveConfig = async (cycle: number, duration: number) => {
+  const saveConfig = async (
+    cycle: number,
+    duration: number,
+    preferences?: {
+      musicEnabled?: boolean;
+      soundEffectsEnabled?: boolean;
+      notificationEnabled?: boolean;
+      remindDailyRecord?: boolean;
+      remindPeriodStart?: boolean;
+      remindOvulation?: boolean;
+    }
+  ) => {
     // 1. 本地状态立即持久化生效
     userConfig.value = {
       ...userConfig.value,
       periodCycle: cycle,
       periodDuration: duration,
+      ...(preferences || {}),
       isFirstTime: false,
     };
     try {
@@ -119,9 +139,11 @@ export const useUserStore = defineStore('user', () => {
         data: {
           periodCycle: cycle,
           periodDuration: duration,
+          ...(preferences || {}),
         },
       });
       userConfig.value = {
+        ...userConfig.value,
         ...res.data,
         isFirstTime: false,
       };
@@ -250,6 +272,38 @@ export const useUserStore = defineStore('user', () => {
     }
   };
 
+  // 缓存预测数据
+  const predictionData = ref<PredictionData | null>(null);
+
+  /**
+   * 加载下次经期与排卵期智能预测
+   */
+  const fetchPredictions = async () => {
+    try {
+      const res = await request<PredictionData>({
+        url: '/predictions',
+        method: 'GET',
+      });
+      if (res && res.data) {
+        predictionData.value = res.data;
+        try {
+          uni.setStorageSync('cached_predictions', JSON.stringify(res.data));
+        } catch (e) {}
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('获取云端预测数据等待中，已加载本地缓存或本地算法');
+      try {
+        const cached = uni.getStorageSync('cached_predictions');
+        if (cached) {
+          predictionData.value = JSON.parse(cached);
+          return predictionData.value;
+        }
+      } catch (e) {}
+    }
+    return predictionData.value;
+  };
+
   /**
    * 注销账号及全部数据 (GDPR)
    */
@@ -267,6 +321,7 @@ export const useUserStore = defineStore('user', () => {
         isFirstTime: true,
       };
       monthlyRecords.value = [];
+      predictionData.value = null;
       uni.showToast({
         title: '数据已全部重置',
         icon: 'success',
@@ -281,11 +336,13 @@ export const useUserStore = defineStore('user', () => {
     token,
     userConfig,
     monthlyRecords,
+    predictionData,
     wxLogin,
     fetchConfig,
     saveConfig,
     fetchMonthlyRecords,
     saveDailyRecord,
+    fetchPredictions,
     resetAllData,
   };
 });

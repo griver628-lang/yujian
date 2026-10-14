@@ -9,6 +9,7 @@ import { RecordsModule } from './records/records.module';
 import { PredictionsModule } from './predictions/predictions.module';
 import { GlossaryModule } from './glossary/glossary.module';
 import { AdminModule } from './admin/admin.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AdminModule } from './admin/admin.module';
     PredictionsModule,
     GlossaryModule,
     AdminModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

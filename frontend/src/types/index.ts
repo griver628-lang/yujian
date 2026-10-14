@@ -1,8 +1,14 @@
 // 首次配置及全局设置类型
 export interface UserConfig {
-  periodCycle: number;      // 周期长度，默认 28
-  periodDuration: number;   // 经期持续天数，默认 5
-  isFirstTime?: boolean;    // 是否首次配置
+  periodCycle: number;           // 周期长度，默认 28
+  periodDuration: number;        // 经期持续天数，默认 5
+  isFirstTime?: boolean;         // 是否首次配置
+  musicEnabled?: boolean;        // 背景音乐总开关
+  soundEffectsEnabled?: boolean; // 触控音效开关
+  notificationEnabled?: boolean; // 服务通知总开关
+  remindDailyRecord?: boolean;   // 当天10点前未记录关怀提醒
+  remindPeriodStart?: boolean;   // 经期开始提醒与关怀
+  remindOvulation?: boolean;     // 排卵期健康提醒
 }
 
 // 经期数据状态枚举

@@ -19,6 +19,12 @@ model UserConfig {
   avatarUrl      String?  @map("avatar_url") // 微信头像（预留自愿选择）
   lastActiveAt   DateTime @default(now()) @map("last_active_at") // 最后活跃时间
   visitCount     Int      @default(1) @map("visit_count") // 累计访问次数
+  musicEnabled        Boolean  @default(true) @map("music_enabled") // 背景音乐总开关
+  soundEffectsEnabled Boolean  @default(true) @map("sound_effects_enabled") // 触控音效开关
+  notificationEnabled Boolean  @default(true) @map("notification_enabled") // 服务通知总开关
+  remindDailyRecord   Boolean  @default(true) @map("remind_daily_record") // 当天10点前未记录关怀提醒
+  remindPeriodStart   Boolean  @default(true) @map("remind_period_start") // 经期开始提醒与关怀
+  remindOvulation     Boolean  @default(true) @map("remind_ovulation") // 排卵期健康提醒
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -61,3 +67,18 @@ model Glossary {
 
   @@map("glossaries")
 }
+
+// 微信服务通知订阅授权额度表
+model UserSubscription {
+  id         String   @id @default(uuid()) @map("id")
+  userId     String   @map("user_id") // 微信用户的 OpenID
+  templateId String   @map("template_id") // 微信公众平台模板 ID
+  count      Int      @default(1) @map("count") // 剩余可下发通知额度
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, templateId])
+  @@index([userId])
+  @@map("user_subscriptions")
+}
+

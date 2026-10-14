@@ -8,11 +8,17 @@
 			}
 		},
 		{
+			"path": "pages/settings/settings",
+			"style": {
+				"navigationBarTitleText": "系统设置",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/setup/setup",
 			"style": {
 				"navigationBarTitleText": "经期设置",
-				"navigationBarBackgroundColor": "#FFF2F2",
-				"navigationBarTextStyle": "black"
+				"navigationStyle": "custom"
 			}
 		},
 		{

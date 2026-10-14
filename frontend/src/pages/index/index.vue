@@ -1,5 +1,5 @@
 <template>
-  <view class="index-container">
+  <view class="index-container" @touchstart.passive="onContainerTouch">
     <!-- 自定义固定导航栏 (整合状态栏占位，防止滑动时内容穿透状态栏) -->
     <view class="fixed-nav-header" :style="{ height: (statusBarHeight + 44) + 'px' }">
       <view class="status-bar-fill" :style="{ height: statusBarHeight + 'px' }"></view>
@@ -8,15 +8,39 @@
           <image class="nav-logo-icon" src="/static/logo.png" mode="aspectFit" />
           <text class="nav-title">愈见</text>
         </view>
-        <view class="nav-action" @tap="goToSettings">
-          <text class="nav-btn-icon">⚙️</text>
+        <view class="nav-actions-group">
+          <!-- 齿轮设置入口 -->
+          <view class="nav-action" @tap="goToSettings" hover-class="nav-btn-hover">
+            <text class="nav-btn-icon">⚙️</text>
+          </view>
         </view>
       </view>
     </view>
     <view class="nav-bar-placeholder" :style="{ height: (statusBarHeight + 44) + 'px' }"></view>
 
-    <!-- 1. 顶部消息公告栏 (支持关闭) -->
-    <view v-if="showMessage" class="notice-bar">
+    <!-- 1. 智能生理期关怀提醒浮条 (当天10点前未记录则提醒，记录则不提醒；经期/排卵期贴心关照) -->
+    <view v-if="currentReminder && showCareBar" class="care-reminder-box" :class="'type-' + currentReminder.type">
+      <view class="care-reminder-content">
+        <text class="care-type-icon">
+          {{ currentReminder.type === 'period-start' ? '🩸' : (currentReminder.type === 'ovulation-day' ? '🥚' : (currentReminder.type === 'ovulation-window' ? '🌸' : '🌙')) }}
+        </text>
+        <view class="care-texts">
+          <text class="care-main-title">{{ currentReminder.title }}</text>
+          <text class="care-sub-message">{{ currentReminder.message }}</text>
+        </view>
+      </view>
+      <view class="care-right-actions">
+        <view v-if="currentReminder.actionText" class="btn-care-action" @tap="handleReminderAction(currentReminder)">
+          <text class="action-label">{{ currentReminder.actionText }}</text>
+        </view>
+        <view class="btn-care-dismiss" @tap="dismissCurrentReminder">
+          <text class="dismiss-x">×</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 兜底日常温馨提示 (当没有特定关怀提醒且开启时展示) -->
+    <view v-else-if="showMessage" class="notice-bar">
       <view class="notice-content">
         <text class="notice-icon">📢</text>
         <text class="notice-text">今日预测：身体状况良好，多喝温水，注意防寒保暖哦~</text>
@@ -118,7 +142,7 @@
         <text class="summary-title">我的生理周期设置</text>
         <text class="summary-desc">平均周期 {{ userStore.userConfig.periodCycle }} 天 / 经期 {{ userStore.userConfig.periodDuration }} 天</text>
       </view>
-      <view class="btn-edit-config" @tap="goToSettings">
+      <view class="btn-edit-config" @tap="goToPeriodSetup">
         <text class="btn-text">去修改</text>
       </view>
     </view>
@@ -309,31 +333,228 @@
           </view>
         </view>
 
-        <!-- A. 月经开关与闭环文案 -->
+        <!-- A. 月经开关与闭环文案 (核心必选) -->
         <view class="log-row justify-between align-center card-row">
-        <view class="row-label-group">
-          <text class="row-label">{{ menstrualToggleText }}</text>
-          <text class="row-sublabel">{{ menstrualStatusDesc }}</text>
+          <view class="row-label-group">
+            <view class="switch-title-row">
+              <text class="row-label">{{ menstrualToggleText }}</text>
+              <text class="field-badge badge-required">核心必选</text>
+            </view>
+            <text class="row-sublabel">{{ menstrualStatusDesc }}</text>
+          </view>
+          <switch 
+            :checked="hasMenstruation" 
+            color="#FF5A79" 
+            @change="toggleMenstrualStatus"
+          />
         </view>
-        <switch 
-          :checked="hasMenstruation" 
-          color="#FF5A79" 
-          @change="toggleMenstrualStatus"
-        />
-      </view>
 
-      <!-- 仅在开启月经标记或当天有记录时，展示经期专属的多维度记录 -->
-      <block v-if="hasMenstruation">
-        <!-- 经量记录 -->
+        <!-- 仅在开启月经标记或当天有记录时，展示经期专属的多维度记录 -->
+        <block v-if="hasMenstruation">
+          <!-- 经量记录 (经期必选) -->
+          <view class="log-section flow-section" :class="{ 'highlight-error': highlightRequiredFlow && !currentRecord.flow }">
+            <view class="section-title-wrap">
+              <view class="title-with-desc">
+                <text class="section-title">🩸 经量大小</text>
+                <text class="section-hint">（经期必选项，用于智能预测周期）</text>
+              </view>
+              <text class="field-badge badge-required">必选</text>
+            </view>
+            <view class="icon-selector-grid">
+              <view 
+                v-for="item in flowOptions" 
+                :key="item.value"
+                class="icon-select-item"
+                :class="{ active: currentRecord.flow === item.value }"
+                @tap="selectFlow(item.value)"
+              >
+                <text class="emoji-icon">{{ item.icon }}</text>
+                <text class="icon-name">{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 痛经程度 (选填) -->
+          <view class="log-section">
+            <view class="section-title-wrap">
+              <view class="title-with-desc">
+                <text class="section-title">⚡ 痛经程度</text>
+                <text class="section-hint">（点击已选项可取消选择）</text>
+              </view>
+              <text class="field-badge badge-optional">选填</text>
+            </view>
+            <view class="icon-selector-grid">
+              <view 
+                v-for="item in painOptions" 
+                :key="item.value"
+                class="icon-select-item"
+                :class="{ active: currentRecord.pain === item.value }"
+                @tap="selectPain(item.value)"
+              >
+                <text class="emoji-icon">{{ item.icon }}</text>
+                <text class="icon-name">{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 经血颜色 (选填) -->
+          <view class="log-section">
+            <view class="section-title-wrap">
+              <view class="title-with-desc">
+                <text class="section-title">🎨 经血颜色</text>
+                <text class="section-hint">（体征细节参考）</text>
+              </view>
+              <text class="field-badge badge-optional">选填</text>
+            </view>
+            <view class="color-selector-grid">
+              <view 
+                v-for="item in colorOptions" 
+                :key="item.value"
+                class="color-select-item"
+                :class="{ active: currentRecord.color === item.value }"
+                @tap="selectColor(item.value)"
+              >
+                <view class="color-circle" :style="{ backgroundColor: item.color }"></view>
+                <text class="color-name">{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 分泌物 (选填) -->
+          <view class="log-section">
+            <view class="section-title-wrap">
+              <view class="title-with-desc">
+                <text class="section-title">💧 宫颈分泌物</text>
+                <text class="section-hint">（排卵期/经期宫颈健康）</text>
+              </view>
+              <text class="field-badge badge-optional">选填</text>
+            </view>
+            <view class="tag-selector-grid">
+              <view 
+                v-for="item in dischargeOptions" 
+                :key="item.value"
+                class="tag-select-item"
+                :class="{ active: currentRecord.discharge === item.value }"
+                @tap="selectDischarge(item.value)"
+              >
+                <text>{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+        </block>
+
+        <!-- 身体症状 (头部/胸部/全身) (选填) -->
         <view class="log-section">
-          <text class="section-title">🩸 经量大小</text>
+          <view class="section-title-wrap">
+            <view class="title-with-desc">
+              <text class="section-title">👤 身体症状</text>
+              <text class="section-hint">（可多选）</text>
+            </view>
+            <text class="field-badge badge-optional">选填</text>
+          </view>
+          
+          <!-- 头部 -->
+          <view class="symptom-subgroup">
+            <text class="symptom-group-label">头部</text>
+            <view class="tag-selector-grid">
+              <view 
+                v-for="item in headSymptoms" 
+                :key="item.value"
+                class="tag-select-item"
+                :class="{ active: hasSymptom('head', item.value) }"
+                @tap="toggleSymptom('head', item.value)"
+              >
+                <text>{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 胸部 -->
+          <view class="symptom-subgroup">
+            <text class="symptom-group-label">胸部</text>
+            <view class="tag-selector-grid">
+              <view 
+                v-for="item in breastSymptoms" 
+                :key="item.value"
+                class="tag-select-item"
+                :class="{ active: hasSymptom('breast', item.value) }"
+                @tap="toggleSymptom('breast', item.value)"
+              >
+                <text>{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 全身 -->
+          <view class="symptom-subgroup">
+            <text class="symptom-group-label">全身</text>
+            <view class="tag-selector-grid">
+              <view 
+                v-for="item in bodySymptoms" 
+                :key="item.value"
+                class="tag-select-item"
+                :class="{ active: hasSymptom('body', item.value) }"
+                @tap="toggleSymptom('body', item.value)"
+              >
+                <text>{{ item.label }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 数值输入 (体温、体重) (选填) -->
+        <view class="log-section">
+          <view class="section-title-wrap">
+            <view class="title-with-desc">
+              <text class="section-title">📊 生理数值测量</text>
+              <text class="section-hint">（支持输入数值）</text>
+            </view>
+            <text class="field-badge badge-optional">选填</text>
+          </view>
+          <view class="input-row-grid">
+            <view class="input-card">
+              <text class="input-label">基础体温</text>
+              <view class="input-wrapper">
+                <input 
+                  type="digit" 
+                  v-model="currentRecord.basalTemperature" 
+                  placeholder="36.5" 
+                  class="num-input" 
+                />
+                <text class="input-unit">°C</text>
+              </view>
+            </view>
+            <view class="input-card">
+              <text class="input-label">今日体重</text>
+              <view class="input-wrapper">
+                <input 
+                  type="digit" 
+                  v-model="currentRecord.weight" 
+                  placeholder="0.0" 
+                  class="num-input" 
+                />
+                <text class="input-unit">斤</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 情绪状态 (选填) -->
+        <view class="log-section">
+          <view class="section-title-wrap">
+            <view class="title-with-desc">
+              <text class="section-title">🎭 情绪状态</text>
+              <text class="section-hint">（点击可切换或取消）</text>
+            </view>
+            <text class="field-badge badge-optional">选填</text>
+          </view>
           <view class="icon-selector-grid">
             <view 
-              v-for="item in flowOptions" 
+              v-for="item in emotionOptions" 
               :key="item.value"
               class="icon-select-item"
-              :class="{ active: currentRecord.flow === item.value }"
-              @tap="currentRecord.flow = item.value"
+              :class="{ active: currentRecord.emotion === item.value }"
+              @tap="selectEmotion(item.value)"
             >
               <text class="emoji-icon">{{ item.icon }}</text>
               <text class="icon-name">{{ item.label }}</text>
@@ -341,165 +562,29 @@
           </view>
         </view>
 
-        <!-- 痛经程度 -->
-        <view class="log-section">
-          <text class="section-title">⚡ 痛经程度</text>
-          <view class="icon-selector-grid">
-            <view 
-              v-for="item in painOptions" 
-              :key="item.value"
-              class="icon-select-item"
-              :class="{ active: currentRecord.pain === item.value }"
-              @tap="currentRecord.pain = item.value"
-            >
-              <text class="emoji-icon">{{ item.icon }}</text>
-              <text class="icon-name">{{ item.label }}</text>
-            </view>
+        <!-- 友好状态校验提示卡片 -->
+        <view class="validation-status-card" :class="'status-' + recordValidationState.statusType">
+          <text class="status-icon">{{ recordValidationState.icon }}</text>
+          <view class="status-content">
+            <text class="status-text">{{ recordValidationState.message }}</text>
+            <text v-if="!recordValidationState.isValid" class="status-sub">
+              {{ hasMenstruation ? '点击上方经量图标即可点亮保存按钮' : '至少选择或填写一项状态即可激活保存' }}
+            </text>
           </view>
         </view>
-
-        <!-- 经血颜色 -->
-        <view class="log-section">
-          <text class="section-title">🎨 经血颜色</text>
-          <view class="color-selector-grid">
-            <view 
-              v-for="item in colorOptions" 
-              :key="item.value"
-              class="color-select-item"
-              :class="{ active: currentRecord.color === item.value }"
-              @tap="currentRecord.color = item.value"
-            >
-              <view class="color-circle" :style="{ backgroundColor: item.color }"></view>
-              <text class="color-name">{{ item.label }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 分泌物 -->
-        <view class="log-section">
-          <text class="section-title">💧 宫颈分泌物</text>
-          <view class="tag-selector-grid">
-            <view 
-              v-for="item in dischargeOptions" 
-              :key="item.value"
-              class="tag-select-item"
-              :class="{ active: currentRecord.discharge === item.value }"
-              @tap="currentRecord.discharge = item.value"
-            >
-              <text>{{ item.label }}</text>
-            </view>
-          </view>
-        </view>
-      </block>
-
-      <!-- 身体症状 (头部/胸部/全身) -->
-      <view class="log-section">
-        <text class="section-title">👤 身体症状 (多选)</text>
-        
-        <!-- 头部 -->
-        <view class="symptom-subgroup">
-          <text class="symptom-group-label">头部</text>
-          <view class="tag-selector-grid">
-            <view 
-              v-for="item in headSymptoms" 
-              :key="item.value"
-              class="tag-select-item"
-              :class="{ active: hasSymptom('head', item.value) }"
-              @tap="toggleSymptom('head', item.value)"
-            >
-              <text>{{ item.label }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 胸部 -->
-        <view class="symptom-subgroup">
-          <text class="symptom-group-label">胸部</text>
-          <view class="tag-selector-grid">
-            <view 
-              v-for="item in breastSymptoms" 
-              :key="item.value"
-              class="tag-select-item"
-              :class="{ active: hasSymptom('breast', item.value) }"
-              @tap="toggleSymptom('breast', item.value)"
-            >
-              <text>{{ item.label }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 全身 -->
-        <view class="symptom-subgroup">
-          <text class="symptom-group-label">全身</text>
-          <view class="tag-selector-grid">
-            <view 
-              v-for="item in bodySymptoms" 
-              :key="item.value"
-              class="tag-select-item"
-              :class="{ active: hasSymptom('body', item.value) }"
-              @tap="toggleSymptom('body', item.value)"
-            >
-              <text>{{ item.label }}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 数值输入 (体温、体重) -->
-      <view class="log-section">
-        <text class="section-title">📊 生理数值测量</text>
-        <view class="input-row-grid">
-          <view class="input-card">
-            <text class="input-label">基础体温</text>
-            <view class="input-wrapper">
-              <input 
-                type="digit" 
-                v-model="currentRecord.basalTemperature" 
-                placeholder="0.0" 
-                class="num-input" 
-              />
-              <text class="input-unit">°C</text>
-            </view>
-          </view>
-          <view class="input-card">
-            <text class="input-label">今日体重</text>
-            <view class="input-wrapper">
-              <input 
-                type="digit" 
-                v-model="currentRecord.weight" 
-                placeholder="0.0" 
-                class="num-input" 
-              />
-              <text class="input-unit">斤</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 情绪状态 -->
-      <view class="log-section">
-        <text class="section-title">🎭 情绪状态</text>
-        <view class="icon-selector-grid">
-          <view 
-            v-for="item in emotionOptions" 
-            :key="item.value"
-            class="icon-select-item"
-            :class="{ active: currentRecord.emotion === item.value }"
-            @tap="currentRecord.emotion = item.value"
-          >
-            <text class="emoji-icon">{{ item.icon }}</text>
-            <text class="icon-name">{{ item.label }}</text>
-          </view>
-        </view>
-      </view>
 
         <!-- 保存操作栏 -->
         <view class="action-buttons-container">
           <button v-if="isEditingToday && hasRecordData" class="btn-secondary-cancel" @tap="cancelEditToday">
             取消
           </button>
-          <button class="btn-save-record" @tap="saveRecord">
-            {{ (isEditingToday && hasRecordData) ? '保存修改' : '保存今日记录' }}
+          <button 
+            class="btn-save-record" 
+            :class="{ ready: recordValidationState.isValid, 'not-ready': !recordValidationState.isValid }"
+            @tap="saveRecord"
+          >
+            <text class="btn-ready-icon" v-if="recordValidationState.isValid">✓</text>
+            <text class="save-btn-label">{{ recordValidationState.buttonText }}</text>
           </button>
         </view>
       </view>
@@ -512,8 +597,49 @@ import { ref, computed, watch } from 'vue';
 import { useUserStore } from '../../store/user';
 import type { DailyRecord, FlowLevel, PainLevel, BloodColor, DischargeType, EmotionType, Symptoms } from '../../types/index';
 import { onLoad, onShow } from '@dcloudio/uni-app';
+import { audioService } from '../../utils/audio';
+import { notificationService, type CareNoticeItem } from '../../utils/notification';
 
 const userStore = useUserStore();
+
+
+
+// 智能关怀提醒系统 (当天10点前未记录则提醒，记录则不提醒；经期/排卵期关照)
+const activeReminders = ref<CareNoticeItem[]>([]);
+const showCareBar = ref(true);
+const currentReminder = computed(() => activeReminders.value[0] || null);
+
+const refreshCareReminders = () => {
+  const today = formatDateString(new Date());
+  activeReminders.value = notificationService.evaluateCareReminders(
+    today,
+    userStore.monthlyRecords,
+    userStore.predictionData,
+  );
+};
+
+const handleReminderAction = (reminder: CareNoticeItem) => {
+  if (reminder.actionType === 'record') {
+    const today = formatDateString(new Date());
+    selectedDate.value = today;
+    startEditToday();
+    uni.showToast({
+      title: '已为你打开今日打卡',
+      icon: 'none',
+    });
+  } else if (reminder.actionType === 'glossary') {
+    goToGlossary();
+  }
+};
+
+const dismissCurrentReminder = () => {
+  if (activeReminders.value.length > 0) {
+    activeReminders.value.shift();
+  }
+  if (activeReminders.value.length === 0) {
+    showCareBar.value = false;
+  }
+};
 
 // 强制绕过编译器静态优化的名词解释按钮文本
 const glossaryLinkText = ref('📚 名词解释 >');
@@ -650,16 +776,93 @@ const getEmptyRecord = (dateStr: string): DailyRecord => ({
 
 const currentRecord = ref<DailyRecord>(getEmptyRecord(''));
 
+// 处理从微信「服务通知」点击卡片直接进入小程序的场景
+const handleNotificationEntry = (query?: any) => {
+  if (!query || query.from !== 'notification') return;
+  console.log('📬 [微信服务通知直接进入] 接收到通知跳转参数:', query);
+
+  if (query.date) {
+    selectedDate.value = query.date;
+    const parts = query.date.split('-');
+    if (parts.length >= 2) {
+      setYearMonth(parseInt(parts[0], 10), parseInt(parts[1], 10));
+    }
+  }
+
+  // 1. 每日未打卡提醒 -> 自动展开今日身体记录打卡面板，并平滑滚动到打卡区
+  if (query.action === 'record') {
+    startEditToday();
+    setTimeout(() => {
+      uni.showToast({
+        title: '🌸 请记录今日身体状态',
+        icon: 'none',
+      });
+      uni.pageScrollTo({
+        selector: '.logging-panel',
+        duration: 350,
+      });
+    }, 400);
+  } else if (query.action === 'period_start') {
+    // 2. 经期来潮关怀
+    setTimeout(() => {
+      uni.showModal({
+        title: '🩸 愈见 · 经期暖心关怀',
+        content: '大姨妈预计于今日到访，身体可能会有些怕冷或微酸。多饮温开水，小腹贴个暖宝宝，今天请加倍好好爱护自己哦~',
+        confirmText: '去记录状态',
+        cancelText: '我知道了',
+        confirmColor: '#FF5A79',
+        success: (res) => {
+          if (res.confirm) {
+            startEditToday();
+          }
+        },
+      });
+    }, 400);
+  } else if (query.action === 'ovulation') {
+    // 3. 排卵期健康关怀
+    setTimeout(() => {
+      uni.showModal({
+        title: '🥚 愈见 · 排卵期关照提醒',
+        content: '今日处于黄金排卵期，受孕几率处于高峰，体内雌激素活跃，心情与精力俱佳！备孕请把握良机，避孕请做好防护~',
+        confirmText: '查看科普',
+        cancelText: '好的',
+        confirmColor: '#7B61FF',
+        success: (res) => {
+          if (res.confirm) {
+            goToGlossary();
+          }
+        },
+      });
+    }, 400);
+  }
+};
+
+// 屏幕手势唤醒兜底（确保 iOS 环境无感解锁自动播放限制）
+const onContainerTouch = () => {
+  audioService.handleUserInteraction();
+};
+
 // 登录验证及启动流程
-onLoad(() => {
+onLoad((options?: any) => {
+  // 1. 默认自动播放治愈背景音乐 (无需等待网络)
+  audioService.autoPlay();
+
   // 立即同步初始化本地日历，防止网络延迟或接口报错导致日历显示空白
   const today = new Date();
   setYearMonth(today.getFullYear(), today.getMonth() + 1);
   selectedDate.value = formatDateString(today);
   generateCalendarSwiperPages(today.getFullYear(), today.getMonth() + 1);
+
+  // 接收微信服务通知卡片点击进来的参数
+  if (options) {
+    handleNotificationEntry(options);
+  }
 });
 
 onShow(async () => {
+  // 1. 优先立即触发背景音乐默认自动播放 (零等待，不阻塞在网络接口之后)
+  audioService.autoPlay();
+
   try {
     const isFirstTime = await userStore.wxLogin();
     if (isFirstTime) {
@@ -668,20 +871,30 @@ onShow(async () => {
       });
       return;
     }
-      // 加载当前设置
-      await userStore.fetchConfig();
-      // 获取最新云端生理记录并刷新日历标识
-      await userStore.fetchMonthlyRecords(String(currentYear.value), String(currentMonth.value));
-      generateCalendarSwiperPages(currentYear.value, currentMonth.value);
-      // 若当前选中的日期已有健康记录，同步刷新当前表单/归档卡片
-      const existing = userStore.monthlyRecords.find(r => r.date === selectedDate.value);
-      if (existing) {
-        currentRecord.value = JSON.parse(JSON.stringify(existing));
-      }
-      console.log('✅ [经期助手] 首页日历与生理数据全部就绪');
+    // 2. 加载当前设置与偏好
+    await userStore.fetchConfig();
+    notificationService.loadSettings();
+
+    // 3. 获取最新云端生理记录并刷新日历标识
+    await userStore.fetchMonthlyRecords(String(currentYear.value), String(currentMonth.value));
+    
+    // 4. 获取下次经期与排卵期智能预测
+    await userStore.fetchPredictions();
+    generateCalendarSwiperPages(currentYear.value, currentMonth.value);
+
+    // 5. 刷新评估关怀提醒 (当天10点前未记录关怀、经期来访、排卵期提醒)
+    refreshCareReminders();
+
+    // 若当前选中的日期已有健康记录，同步刷新当前表单/归档卡片
+    const existing = userStore.monthlyRecords.find(r => r.date === selectedDate.value);
+    if (existing) {
+      currentRecord.value = JSON.parse(JSON.stringify(existing));
+    }
+    console.log('✅ [经期助手] 首页日历、背景音乐与关怀提醒全部就绪');
   } catch (err) {
     console.warn('云端初始化暂时等待中，已平滑展示本地日历', err);
     generateCalendarSwiperPages(currentYear.value, currentMonth.value);
+    refreshCareReminders();
   }
 });
 
@@ -975,6 +1188,115 @@ const toggleSymptom = (group: keyof Symptoms, val: string) => {
   }
 };
 
+// 维度点选与反选助手方法
+const highlightRequiredFlow = ref(false);
+
+const selectFlow = (val: FlowLevel) => {
+  currentRecord.value.flow = val;
+  highlightRequiredFlow.value = false;
+};
+
+const selectPain = (val: PainLevel) => {
+  currentRecord.value.pain = currentRecord.value.pain === val ? undefined : val;
+};
+
+const selectColor = (val: BloodColor) => {
+  currentRecord.value.color = currentRecord.value.color === val ? undefined : val;
+};
+
+const selectDischarge = (val: DischargeType) => {
+  currentRecord.value.discharge = currentRecord.value.discharge === val ? undefined : val;
+};
+
+const selectEmotion = (val: EmotionType) => {
+  currentRecord.value.emotion = currentRecord.value.emotion === val ? undefined : val;
+};
+
+export interface FormValidationState {
+  isValid: boolean;
+  statusType: 'success' | 'warning' | 'info';
+  icon: string;
+  message: string;
+  buttonText: string;
+  unfilledField?: 'flow' | 'empty' | 'temperature' | 'weight';
+}
+
+const recordValidationState = computed<FormValidationState>(() => {
+  // 1. 若处于经期：经量大小为必选
+  if (hasMenstruation.value) {
+    if (!currentRecord.value.flow || currentRecord.value.flow === 'none') {
+      return {
+        isValid: false,
+        statusType: 'warning',
+        icon: '⚠️',
+        message: '经期中「经量大小」为必选项，请点选今日经量',
+        buttonText: '请先选择今日经量',
+        unfilledField: 'flow',
+      };
+    }
+  } else {
+    // 2. 若非经期：不能完全没有任何一条数据就保存
+    const hasEmotion = !!currentRecord.value.emotion;
+    const hasTemp = currentRecord.value.basalTemperature !== undefined && currentRecord.value.basalTemperature !== null && String(currentRecord.value.basalTemperature).trim() !== '';
+    const hasWeight = currentRecord.value.weight !== undefined && currentRecord.value.weight !== null && String(currentRecord.value.weight).trim() !== '';
+    const hasSymptoms = (currentRecord.value.symptoms?.head?.length || 0) > 0 ||
+                        (currentRecord.value.symptoms?.breast?.length || 0) > 0 ||
+                        (currentRecord.value.symptoms?.body?.length || 0) > 0;
+    const hasDischarge = !!currentRecord.value.discharge && currentRecord.value.discharge !== 'none';
+    const hasPain = !!currentRecord.value.pain && currentRecord.value.pain !== 'none';
+
+    if (!hasEmotion && !hasTemp && !hasWeight && !hasSymptoms && !hasDischarge && !hasPain) {
+      return {
+        isValid: false,
+        statusType: 'info',
+        icon: '💡',
+        message: '日常健康打卡：请至少记录一项情绪、体征或身体症状',
+        buttonText: '请记录至少一项身体/情绪状态',
+        unfilledField: 'empty',
+      };
+    }
+  }
+
+  // 3. 数值合理性校验
+  if (currentRecord.value.basalTemperature !== undefined && currentRecord.value.basalTemperature !== null && String(currentRecord.value.basalTemperature).trim() !== '') {
+    const temp = Number(currentRecord.value.basalTemperature);
+    if (isNaN(temp) || temp < 35.0 || temp > 42.0) {
+      return {
+        isValid: false,
+        statusType: 'warning',
+        icon: '🌡️',
+        message: '基础体温数值需在 35.0°C ~ 42.0°C 之间',
+        buttonText: '请更正基础体温数值',
+        unfilledField: 'temperature',
+      };
+    }
+  }
+
+  if (currentRecord.value.weight !== undefined && currentRecord.value.weight !== null && String(currentRecord.value.weight).trim() !== '') {
+    const w = Number(currentRecord.value.weight);
+    if (isNaN(w) || w < 40 || w > 300) {
+      return {
+        isValid: false,
+        statusType: 'warning',
+        icon: '⚖️',
+        message: '体重数值需在 40 斤 ~ 300 斤之间',
+        buttonText: '请更正体重数值',
+        unfilledField: 'weight',
+      };
+    }
+  }
+
+  // 4. 全部合格
+  const isEditing = isEditingToday.value && hasRecordData.value;
+  return {
+    isValid: true,
+    statusType: 'success',
+    icon: '✨',
+    message: isEditing ? '修改内容已就绪，点击下方保存' : '今日记录已就绪，点击下方完成打卡',
+    buttonText: isEditing ? '保存修改' : '保存今日记录',
+  };
+});
+
 // 日历页生成算法
 const calendarPages = ref<any[]>([]);
 
@@ -1075,7 +1397,7 @@ const getMonthDays = (year: number, month: number) => {
 };
 
 // 匹配预测或实际生理期的类型颜色
-const getPeriodType = (dateStr: string) => {
+const getPeriodType = (dateStr: string): 'none' | 'type-menstrual' | 'type-predict' | 'type-ovulation-day' | 'type-ovulation-window' => {
   if (!dateStr || typeof dateStr !== 'string') return 'none';
   const record = userStore.monthlyRecords.find(r => r.date === dateStr);
   
@@ -1089,7 +1411,7 @@ const getPeriodType = (dateStr: string) => {
   if (parts.length < 3) return 'none';
   const day = parseInt(parts[2], 10);
   if (isNaN(day)) return 'none';
-  if (day >= 1 && day <= 5) return 'type-menstrual'; // 经期示例
+  if (day >= 1 && day <= 5) return 'type-predict'; // 预测经期示例
   if (day === 15) return 'type-ovulation-day';       // 排卵日示例
   if (day >= 10 && day <= 16) return 'type-ovulation-window'; // 排卵期示例
 
@@ -1154,7 +1476,15 @@ const goBackToToday = () => {
   selectedDate.value = formatDateString(today);
 };
 
+// 点击右上角齿轮图标：进入专门的系统设置（音乐开关、推送提醒开关）
 const goToSettings = () => {
+  uni.navigateTo({
+    url: '/pages/settings/settings',
+  });
+};
+
+// 点击主界面生理周期卡片的“去修改”：专门修改经期周期
+const goToPeriodSetup = () => {
   uni.navigateTo({
     url: '/pages/setup/setup?mode=edit',
   });
@@ -1180,8 +1510,64 @@ const cancelEditToday = () => {
 };
 
 const saveRecord = async () => {
+  const validation = recordValidationState.value;
+  if (!validation.isValid) {
+    if (validation.unfilledField === 'flow') {
+      highlightRequiredFlow.value = true;
+      uni.showToast({
+        title: '⚠️ 经期请先选择今日经量大小哦~',
+        icon: 'none',
+        duration: 2500,
+      });
+      // 自动平滑滚动到经量必选区域
+      uni.pageScrollTo({
+        selector: '.flow-section',
+        duration: 350,
+      });
+      setTimeout(() => {
+        highlightRequiredFlow.value = false;
+      }, 3500);
+      return;
+    }
+
+    if (validation.unfilledField === 'empty') {
+      uni.showToast({
+        title: '💡 请至少记录一项身体症状、情绪或体征~',
+        icon: 'none',
+        duration: 2500,
+      });
+      return;
+    }
+
+    uni.showToast({
+      title: validation.message,
+      icon: 'none',
+      duration: 2500,
+    });
+    return;
+  }
+
   if (!currentRecord.value.date) {
     currentRecord.value.date = selectedDate.value || formatDateString(new Date());
+  }
+
+  // 若非经期，清理残留的经期经量与经血颜色数据
+  if (!hasMenstruation.value) {
+    currentRecord.value.flow = undefined;
+    currentRecord.value.color = undefined;
+  }
+
+  // 格式化体温和体重数值为浮点数
+  if (currentRecord.value.basalTemperature !== undefined && currentRecord.value.basalTemperature !== null && String(currentRecord.value.basalTemperature).trim() !== '') {
+    currentRecord.value.basalTemperature = parseFloat(String(currentRecord.value.basalTemperature));
+  } else {
+    currentRecord.value.basalTemperature = undefined;
+  }
+
+  if (currentRecord.value.weight !== undefined && currentRecord.value.weight !== null && String(currentRecord.value.weight).trim() !== '') {
+    currentRecord.value.weight = parseFloat(String(currentRecord.value.weight));
+  } else {
+    currentRecord.value.weight = undefined;
   }
 
   uni.showLoading({
@@ -1192,11 +1578,19 @@ const saveRecord = async () => {
   try {
     const success = await userStore.saveDailyRecord(currentRecord.value);
     if (success) {
+      // 触控/轻微振动反馈
+      audioService.playClickFeedback();
+      uni.showToast({
+        title: '✨ 记录保存成功',
+        icon: 'success',
+      });
       // 保存成功后退出修改状态，切换为展示卡片
       isEditingToday.value = false;
       // 重新刷新当月日历的圆圈标记
       setYearMonth(currentYear.value, currentMonth.value);
       generateCalendarSwiperPages(currentYear.value, currentMonth.value);
+      // 刷新关怀提醒：若已打卡记录，未记录提醒自动移除免打扰！
+      refreshCareReminders();
     }
   } finally {
     uni.hideLoading();
@@ -1257,31 +1651,147 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
     }
   }
   
-  .nav-action {
+  .nav-actions-group {
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 60rpx;
-    height: 60rpx;
-    border-radius: 50%;
-    background: rgba(255, 90, 121, 0.08);
-    border: 1px solid rgba(255, 90, 121, 0.15);
-    flex-shrink: 0;
-    transition: all 0.2s;
 
-    .nav-btn-icon {
-      font-size: 32rpx;
-    }
 
-    &:active {
-      background: rgba(255, 90, 121, 0.22);
-      transform: scale(0.95);
+
+    .nav-action {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 60rpx;
+      height: 60rpx;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 90, 121, 0.2);
+      box-shadow: 0 4rpx 12rpx rgba(255, 112, 136, 0.08);
+      flex-shrink: 0;
+      transition: all 0.2s;
+
+      .nav-btn-icon {
+        font-size: 32rpx;
+      }
+
+      &:active,
+      &.nav-btn-hover {
+        background: #FFE8EC;
+        transform: scale(0.95);
+      }
     }
   }
 }
 
 .nav-bar-placeholder {
   width: 100%;
+}
+
+// 智能生理期关怀提醒卡片
+.care-reminder-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16rpx 40rpx 20rpx 40rpx;
+  padding: 22rpx 24rpx;
+  border-radius: 28rpx;
+  box-shadow: 0 8rpx 24rpx rgba(255, 112, 136, 0.06);
+  position: relative;
+  transition: all 0.3s ease;
+
+  // 默认打卡关怀（未记录时）
+  background: linear-gradient(135deg, #FFF7F8 0%, #FFEEF1 100%);
+  border: 1px solid rgba(255, 112, 136, 0.22);
+
+  &.type-period-start {
+    background: linear-gradient(135deg, #FFF0F3 0%, #FFE4E8 100%);
+    border: 1px solid rgba(255, 77, 109, 0.32);
+    box-shadow: 0 8rpx 24rpx rgba(255, 77, 109, 0.12);
+  }
+
+  &.type-ovulation-day,
+  &.type-ovulation-window {
+    background: linear-gradient(135deg, #F9F5FF 0%, #F1EAFF 100%);
+    border: 1px solid rgba(163, 142, 255, 0.3);
+    box-shadow: 0 8rpx 24rpx rgba(163, 142, 255, 0.1);
+  }
+
+  .care-reminder-content {
+    display: flex;
+    align-items: flex-start;
+    flex: 1;
+    margin-right: 16rpx;
+
+    .care-type-icon {
+      font-size: 36rpx;
+      margin-right: 16rpx;
+      line-height: 1.2;
+    }
+
+    .care-texts {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+
+      .care-main-title {
+        font-size: 26rpx;
+        font-weight: 700;
+        color: #2D2727;
+        margin-bottom: 4rpx;
+      }
+
+      .care-sub-message {
+        font-size: 22rpx;
+        color: #7A6E6E;
+        line-height: 1.45;
+      }
+    }
+  }
+
+  .care-right-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    .btn-care-action {
+      background: linear-gradient(135deg, #FF6F8B 0%, #FF4D6D 100%);
+      padding: 10rpx 20rpx;
+      border-radius: 24rpx;
+      box-shadow: 0 4rpx 12rpx rgba(255, 77, 109, 0.25);
+      margin-right: 12rpx;
+
+      .action-label {
+        font-size: 22rpx;
+        font-weight: 600;
+        color: #FFF;
+      }
+
+      &:active {
+        opacity: 0.9;
+        transform: scale(0.96);
+      }
+    }
+
+    .btn-care-dismiss {
+      width: 44rpx;
+      height: 44rpx;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.04);
+
+      .dismiss-x {
+        font-size: 32rpx;
+        color: #9C8E8E;
+        line-height: 1;
+      }
+
+      &:active {
+        background: rgba(0, 0, 0, 0.08);
+      }
+    }
+  }
 }
 
 // 顶部消息通知
@@ -2140,6 +2650,12 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
   border-radius: 30rpx;
   margin-bottom: 40rpx;
   border: 1px solid rgba(255, 112, 136, 0.05);
+
+  .switch-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12rpx;
+  }
 }
 
 .row-label-group {
@@ -2161,14 +2677,72 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
 
 .log-section {
   margin-bottom: 40rpx;
+  transition: all 0.25s ease;
+  border-radius: 24rpx;
+
+  &.highlight-error {
+    background: rgba(255, 77, 109, 0.06);
+    padding: 16rpx;
+    margin: -16rpx -16rpx 24rpx -16rpx;
+    border: 2rpx dashed #FF4D6D;
+    animation: pulseShake 0.4s ease;
+  }
+
+  .section-title-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24rpx;
+
+    .title-with-desc {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8rpx;
+
+      .section-title {
+        font-size: 28rpx;
+        font-weight: 700;
+        color: #2D2727;
+      }
+
+      .section-hint {
+        font-size: 20rpx;
+        color: #A89B9B;
+        font-weight: normal;
+      }
+    }
+  }
 }
 
-.section-title {
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #2D2727;
-  display: block;
-  margin-bottom: 24rpx;
+.field-badge {
+  font-size: 20rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 20rpx;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.3;
+
+  &.badge-required {
+    color: #FF3B62;
+    background: #FFE8ED;
+    border: 1rpx solid rgba(255, 59, 98, 0.3);
+  }
+
+  &.badge-optional {
+    color: #8C7F7F;
+    background: #F2EEEE;
+    border: 1rpx solid rgba(0, 0, 0, 0.04);
+  }
+}
+
+@keyframes pulseShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8rpx); }
+  40% { transform: translateX(8rpx); }
+  60% { transform: translateX(-6rpx); }
+  80% { transform: translateX(6rpx); }
 }
 
 // 图标/表情单选网络
@@ -2322,25 +2896,119 @@ const formatDateString = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth()
   }
 }
 
+// 动态友好状态校验提示卡片
+.validation-status-card {
+  display: flex;
+  align-items: flex-start;
+  padding: 22rpx 26rpx;
+  border-radius: 24rpx;
+  margin-top: 36rpx;
+  margin-bottom: 16rpx;
+  transition: all 0.3s ease;
+
+  .status-icon {
+    font-size: 32rpx;
+    margin-right: 14rpx;
+    line-height: 1.2;
+    flex-shrink: 0;
+  }
+
+  .status-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+
+    .status-text {
+      font-size: 25rpx;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .status-sub {
+      font-size: 21rpx;
+      margin-top: 6rpx;
+      line-height: 1.3;
+      opacity: 0.85;
+    }
+  }
+
+  &.status-warning {
+    background: #FFF7EB;
+    border: 1rpx solid rgba(250, 140, 22, 0.3);
+    .status-text {
+      color: #D46B08;
+    }
+    .status-sub {
+      color: #E68A00;
+    }
+  }
+
+  &.status-info {
+    background: #F4F7FF;
+    border: 1rpx solid rgba(47, 84, 235, 0.25);
+    .status-text {
+      color: #2F54EB;
+    }
+    .status-sub {
+      color: #597EF7;
+    }
+  }
+
+  &.status-success {
+    background: #F4FBF4;
+    border: 1rpx solid rgba(82, 196, 26, 0.3);
+    .status-text {
+      color: #389E0D;
+    }
+    .status-sub {
+      color: #52C41A;
+    }
+  }
+}
+
 // 保存按钮
 .btn-save-record {
   width: 100%;
   height: 96rpx;
   border-radius: 28rpx;
-  background: linear-gradient(135deg, #FF6F8B 0%, #FF4D6D 100%);
-  color: #FFF;
   font-size: 30rpx;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10rpx 24rpx rgba(255, 77, 109, 0.2);
-  margin-top: 60rpx;
   border: none;
-  
-  &:active {
-    transform: translateY(2rpx);
-    box-shadow: 0 4rpx 10rpx rgba(255, 77, 109, 0.1);
+  transition: all 0.3s ease;
+
+  .btn-ready-icon {
+    font-size: 32rpx;
+    margin-right: 10rpx;
+    font-weight: bold;
+  }
+
+  .save-btn-label {
+    letter-spacing: 1rpx;
+  }
+
+  &.ready {
+    background: linear-gradient(135deg, #FF6F8B 0%, #FF4D6D 100%);
+    color: #FFF;
+    box-shadow: 0 10rpx 24rpx rgba(255, 77, 109, 0.25);
+
+    &:active {
+      transform: translateY(2rpx);
+      box-shadow: 0 4rpx 10rpx rgba(255, 77, 109, 0.12);
+    }
+  }
+
+  &.not-ready {
+    background: #FFE8ED;
+    color: #FF5A79;
+    box-shadow: 0 4rpx 12rpx rgba(255, 90, 121, 0.08);
+
+    &:active {
+      transform: scale(0.98);
+      background: #FFDEE5;
+    }
   }
 }
 

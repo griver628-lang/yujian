@@ -1,4 +1,4 @@
-import { IsInt, Min, Max } from 'class-validator';
+import { IsInt, Min, Max, IsBoolean, IsOptional } from 'class-validator';
 
 export class UpdateConfigDto {
   @IsInt({ message: '周期长度必须是整数' })
@@ -10,4 +10,28 @@ export class UpdateConfigDto {
   @Min(2, { message: '经期天数不能小于 2 天' })
   @Max(15, { message: '经期天数不能超过 15 天' })
   periodDuration: number;
+
+  @IsOptional()
+  @IsBoolean()
+  musicEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  soundEffectsEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  notificationEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  remindDailyRecord?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  remindPeriodStart?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  remindOvulation?: boolean;
 }
