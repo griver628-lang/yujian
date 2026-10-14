@@ -171,10 +171,10 @@
             <text class="subscribe-text">授权微信订阅消息 (服务通知)</text>
           </view>
 
-          <!-- 模拟发送测试服务通知 -->
-          <view class="test-notice-btn-box" @tap="handleSendTestNotice" hover-class="btn-hover">
+          <!-- 内部测试专用入口 (默认对普通用户完全隐藏，点击版本号5次才可开启) -->
+          <view v-if="isDevMode" class="test-notice-btn-box" @tap="handleSendTestNotice" hover-class="btn-hover">
             <text class="test-icon">🧪</text>
-            <text class="test-text">发送一条测试微信服务通知</text>
+            <text class="test-text">[内部调试] 发送一条测试微信服务通知</text>
           </view>
         </template>
       </view>
@@ -203,7 +203,7 @@
           <image class="about-logo" src="/static/logo.png" mode="aspectFit" />
           <view class="about-texts">
             <text class="about-name">愈见 · 女性生理期助手</text>
-            <text class="about-ver">Version 1.2.0 · 守护每位女性的身心健康</text>
+            <text class="about-ver" @tap="handleVersionTap">Version 1.2.0 · 守护每位女性的身心健康</text>
           </view>
         </view>
         <text class="about-tip">
@@ -306,6 +306,9 @@ const remindDailyRecord = ref(true);
 const remindPeriodStart = ref(true);
 const remindOvulation = ref(true);
 const showNoticePreviewModal = ref(false);
+
+// 开发者调试模式开关（默认对所有普通用户隐藏）
+const isDevMode = ref(false);
 
 // 经期周期参数预览
 const cycle = computed(() => userStore.userConfig.periodCycle || 28);
@@ -470,6 +473,28 @@ const sendRealBackendNotice = async () => {
     }
   } catch (e) {
     uni.hideLoading();
+  }
+};
+
+// 连续快速点击版本号 5 次开启/关闭开发者调试入口（普通用户无法误触）
+let versionTapCount = 0;
+let versionTapTimer: any = null;
+
+const handleVersionTap = () => {
+  versionTapCount++;
+  clearTimeout(versionTapTimer);
+  versionTapTimer = setTimeout(() => {
+    versionTapCount = 0;
+  }, 2000);
+
+  if (versionTapCount >= 5) {
+    isDevMode.value = !isDevMode.value;
+    versionTapCount = 0;
+    audioService.playClickFeedback();
+    uni.showToast({
+      title: isDevMode.value ? '已开启内部调试入口' : '已隐藏调试入口',
+      icon: 'none',
+    });
   }
 };
 
