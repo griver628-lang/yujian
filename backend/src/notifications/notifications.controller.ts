@@ -21,8 +21,8 @@ export class NotificationsController {
    * 用户在设置页一键测试发送一条微信服务通知
    */
   @Post('test-send')
-  async testSend(@Req() req: any) {
-    return this.notificationsService.testSend(req.userId);
+  async testSend(@Req() req: any, @Body() body: { miniprogramState?: string; templateId?: string }) {
+    return this.notificationsService.testSend(req.userId, body?.miniprogramState, body?.templateId);
   }
 
   /**

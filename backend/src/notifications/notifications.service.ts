@@ -85,17 +85,23 @@ export class NotificationsService {
     templateId: string;
     page?: string;
     data: Record<string, { value: string }>;
+    miniprogramState?: string;
   }): Promise<{ success: boolean; errCode?: number; errMsg?: string }> {
-    const { userId, templateId, page = 'pages/index/index', data } = params;
+    const { userId, templateId, page = 'pages/index/index', data, miniprogramState } = params;
 
-    const payload = {
+    // 优先使用前端传入的当前小程序版本状态 (developer/trial/formal)，开发/体验调试时不能传 formal
+    const state = miniprogramState || 'developer';
+
+    const payload: any = {
       touser: userId,
       template_id: templateId,
       page,
       data,
-      miniprogram_state: process.env.NODE_ENV === 'production' ? 'formal' : 'developer',
+      miniprogram_state: state,
       lang: 'zh_CN',
     };
+
+    this.logger.log(`📤 [微信服务通知] 准备下发: touser=${userId}, templateId=${templateId}, state=${state}`);
 
     // 1. 尝试微信云托管内网免鉴权调用通道 (无需自己维护 token)
     try {
@@ -105,20 +111,40 @@ export class NotificationsService {
         body: JSON.stringify(payload),
       });
       const cloudData = await cloudRes.json();
+      this.logger.log(`📥 [微信服务通知] 云托管微信接口返回: ${JSON.stringify(cloudData)}`);
       if (cloudData.errcode === 0) {
         this.logger.log(`✅ [微信服务通知-云托管免鉴权] 发送成功给 ${userId}`);
         await this.decrementSubscriptionCount(userId, templateId);
         return { success: true };
+      } else {
+        // 如果是 43101 (未授权当前版本) 且初始状态为 developer，尝试以 trial (体验版) 重试一次
+        if (cloudData.errcode === 43101 && state === 'developer') {
+          this.logger.log(`🔄 尝试以 trial(体验版) 状态重试下发...`);
+          payload.miniprogram_state = 'trial';
+          const retryRes = await fetch('http://api.weixin.qq.com/cgi-bin/message/subscribe/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const retryData = await retryRes.json();
+          this.logger.log(`📥 [微信服务通知] 重试返回: ${JSON.stringify(retryData)}`);
+          if (retryData.errcode === 0) {
+            await this.decrementSubscriptionCount(userId, templateId);
+            return { success: true };
+          }
+        }
+        this.logger.warn(`❌ [微信服务通知-云托管免鉴权] 微信返回失败: errcode=${cloudData.errcode}, errmsg=${cloudData.errmsg}`);
+        return { success: false, errCode: cloudData.errcode, errMsg: cloudData.errmsg };
       }
-    } catch (e) {
-      // 非微信云托管容器网络环境，降级使用通用标准接口
+    } catch (e: any) {
+      this.logger.warn(`微信云托管免鉴权通道请求异常 (可能在本地或非云容器环境):`, e?.message);
     }
 
     // 2. 通用接口调用 (通过 AccessToken)
     const token = await this.getAccessToken();
     if (!token) {
-      this.logger.warn(`未配置微信 AppSecret 且非云托管环境，已模拟下发服务通知给 ${userId}`);
-      return { success: true, errMsg: '已在本地/开发模式成功模拟触发服务通知' };
+      this.logger.warn(`未配置微信 AppSecret 且非云托管环境，已记录下发请求给 ${userId}`);
+      return { success: false, errCode: 9999, errMsg: '云托管免鉴权通道未连通且未配置微信 AppSecret' };
     }
 
     try {
@@ -131,12 +157,12 @@ export class NotificationsService {
         },
       );
       const resData = await res.json();
+      this.logger.log(`📥 [微信服务通知] 标准接口返回: ${JSON.stringify(resData)}`);
       if (resData.errcode === 0) {
         this.logger.log(`✅ [微信服务通知-标准网关] 发送成功给 ${userId}`);
         await this.decrementSubscriptionCount(userId, templateId);
         return { success: true };
       }
-      this.logger.warn(`微信服务通知发送返回: ${JSON.stringify(resData)}`);
       return { success: false, errCode: resData.errcode, errMsg: resData.errmsg };
     } catch (err: any) {
       this.logger.error('调用微信发送服务通知接口异常', err);
@@ -247,27 +273,42 @@ export class NotificationsService {
   /**
    * 测试向当前用户发送一条模拟服务通知
    */
-  async testSend(userId: string) {
+  async testSend(userId: string, miniprogramState?: string, customTemplateId?: string) {
     const sub = await this.prisma.userSubscription.findFirst({
       where: { userId, count: { gt: 0 } },
     });
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const templateId = sub ? sub.templateId : 'YnDZQ5IxfiDyLG5fx6xHFdD4czABRwzIwvyvmgiJ_uo';
+    const templateId = customTemplateId || (sub ? sub.templateId : 'YnDZQ5IxfiDyLG5fx6xHFdD4czABRwzIwvyvmgiJ_uo');
+    
+    // 构造兼容常见模板关键词的多字段数据，避免因字段名不匹配报 47003
+    const messageData: Record<string, { value: string }> = {
+      thing1: { value: '今日健康打卡关怀' },
+      time2: { value: todayStr },
+      thing2: { value: '今日健康状态未打卡' },
+      time3: { value: todayStr },
+      thing3: { value: '睡前抽10秒记录一下' },
+      thing4: { value: '晚10点前未打卡提醒' },
+      phrase1: { value: '未记录' },
+      date2: { value: todayStr },
+    };
+
     const result = await this.sendSubscribeMessage({
       userId,
       templateId,
       // 测试卡片：点击同样可直接进入小程序并展开今日打卡！
       page: `pages/index/index?from=notification&action=record&date=${todayStr}`,
-      data: {
-        thing1: { value: '愈见贴心生理期关怀测试' },
-        time2: { value: todayStr },
-      },
+      data: messageData,
+      miniprogramState,
     });
 
     return {
-      success: true,
-      message: result.success ? '服务通知测试发送成功！点击卡片可直达小程序' : (result.errMsg || '测试通知已调用'),
+      success: result.success,
+      errCode: result.errCode,
+      errMsg: result.errMsg,
+      message: result.success
+        ? '微信服务通知下发成功！请在微信聊天列表中查看'
+        : `微信下发返回: [${result.errCode || 'ERROR'}] ${result.errMsg || '下发失败'}`,
     };
   }
 }

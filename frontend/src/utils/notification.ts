@@ -154,16 +154,61 @@ class NotificationService {
    * 发起一次测试服务通知（由后端向当前用户的微信发送）
    */
   public async sendTestNotification(): Promise<boolean> {
+    // 自动感知当前小程序版本环境 (开发版/体验版/正式版)
+    let miniprogramState = 'developer';
     try {
-      const res = await request<{ success: boolean; message: string }>({
+      // @ts-ignore
+      if (typeof wx !== 'undefined' && typeof wx.getAccountInfoSync === 'function') {
+        // @ts-ignore
+        const account = wx.getAccountInfoSync();
+        const ver = account?.miniProgram?.envVersion;
+        if (ver === 'release') miniprogramState = 'formal';
+        else if (ver === 'trial') miniprogramState = 'trial';
+        else miniprogramState = 'developer';
+      }
+    } catch (e) {}
+
+    try {
+      const res = await request<{
+        success: boolean;
+        message: string;
+        errCode?: number;
+        errMsg?: string;
+      }>({
         url: '/notifications/test-send',
         method: 'POST',
+        data: { miniprogramState },
       });
-      uni.showToast({
-        title: res.data?.message || '测试通知已发出',
-        icon: 'none',
-      });
-      return true;
+
+      if (res.data?.success) {
+        uni.showModal({
+          title: '✅ 服务通知已推送到微信',
+          content: '微信官方已成功下发服务通知！\n\n请返回【微信聊天消息列表】，查看置顶的「服务通知」消息卡片。点击卡片可秒级直达小程序并展开今日打卡！',
+          showCancel: false,
+          confirmText: '我知道了',
+          confirmColor: '#FF5A79',
+        });
+        return true;
+      } else {
+        const errCode = res.data?.errCode;
+        let tip = res.data?.message || '微信下发未成功';
+
+        if (errCode === 43101) {
+          tip = '【微信返回 43101：用户未授权或已拒收】\n\n微信规定下发必须有用户授权额度。请先点击上方的「授权微信订阅消息」并在微信官方弹窗中勾选允许。';
+        } else if (errCode === 47003) {
+          tip = `【微信返回 47003：模板关键词字段不匹配】\n\n微信反馈模板字段不符，请核对公众平台模板的关键词定义。\n详细: ${res.data?.errMsg || ''}`;
+        } else if (errCode === 40037) {
+          tip = '【微信返回 40037：模板ID不合法】\n\n请确认该模板 ID 是否属于当前小程序绑定的账号。';
+        }
+
+        uni.showModal({
+          title: '微信推送反馈',
+          content: tip,
+          showCancel: false,
+          confirmText: '确定',
+        });
+        return false;
+      }
     } catch (e: any) {
       const errMsg = e?.errMsg || e?.message || String(e || '');
       // 检测云端是否尚未部署新版本（404 路由不存在）
