@@ -169,10 +169,10 @@ class NotificationService {
       // 检测云端是否尚未部署新版本（404 路由不存在）
       if (errMsg.includes('Cannot POST') || errMsg.includes('404')) {
         uni.showModal({
-          title: '云托管后端待部署',
-          content: '微信云托管容器目前运行的是旧版本镜像，新增的通知接口尚未发布到云端。需要将 backend 代码上传或推送部署到微信云托管。是否先在小程序内模拟测试通知点击直达？',
+          title: '云端版本同步提示',
+          content: '云端 Docker 镜像正在构建中（或新版本正在切换 100% 流量，通常耗时 3~5 分钟）。\n\n请在微信云托管「版本管理」中查看构建进度，确认新版本构建完毕并将流量设为 100% 即可。\n\n是否先在小程序内体验测试通知直达？',
           confirmText: '模拟直达',
-          cancelText: '我知道了',
+          cancelText: '稍后重试',
           success: (res) => {
             if (res.confirm) {
               const today = new Date().toISOString().split('T')[0];
